@@ -1,7 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
 
     <!-- Required on Android 11+ to query launchable activities. -->
     <queries>
@@ -13,7 +16,8 @@
 
     <application
         android:allowBackup="false"
-        android:label="Minimal Launcher"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.MinimalLauncher">
         <activity

@@ -13,8 +13,10 @@ import android.text.format.DateFormat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +39,8 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -46,7 +50,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,10 +73,10 @@ import com.rafael.minimallauncher.data.LauncherSettings
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
+import kotlin.math.abs
 
 @Composable
 internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
@@ -76,9 +85,9 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
     var displayedItems by remember { mutableStateOf(state.homeItems) }
     var selectedItemId by remember { mutableStateOf<String?>(null) }
     var draggedItemId by remember { mutableStateOf<String?>(null) }
-    var originalDragIndex by remember { mutableStateOf(-1) }
-    var currentDragIndex by remember { mutableStateOf(-1) }
-    var dragOffset by remember { mutableStateOf(0f) }
+    var originalDragIndex by remember { mutableIntStateOf(-1) }
+    var currentDragIndex by remember { mutableIntStateOf(-1) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
     var movedDuringDrag by remember { mutableStateOf(false) }
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
@@ -93,11 +102,11 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 32.dp)
+            .padding(horizontal = 16.dp)
             .padding(bottom = if (state.preferences.settings.showDailyUsage) 58.dp else 0.dp),
     ) {
         ClockHeader(state.preferences.settings)
-        Spacer(Modifier.height(46.dp))
+        Spacer(Modifier.height(56.dp))
         when {
             state.isLoading -> Text("Loading apps…", color = Color.Gray)
             displayedItems.isEmpty() -> Text("Swipe left to add apps to Home.", color = Color.Gray, fontSize = 18.sp)
@@ -111,28 +120,46 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(64.dp)
+                            .height(56.dp)
                             .zIndex(if (draggedItemId == item.id) 1f else 0f)
                             .graphicsLayer { translationY = if (draggedItemId == item.id) dragOffset else 0f }
                             .background(if (draggedItemId == item.id) Color(0xFF161616) else Color.Transparent)
                             .pointerInput(item.id) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = {
-                                        val index = displayedItems.indexOfFirst { it.id == item.id }
-                                        if (index < 0) return@detectDragGesturesAfterLongPress
-                                        draggedItemId = item.id
-                                        originalDragIndex = index
-                                        currentDragIndex = index
-                                        dragOffset = 0f
-                                        movedDuringDrag = false
-                                        selectedItemId = null
-                                    },
-                                    onDrag = { change, amount ->
+                                awaitEachGesture {
+                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                    val earlyFinish = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                        waitForUpOrCancellation() to true
+                                    }
+                                    if (earlyFinish != null) {
+                                        if (earlyFinish.first != null) {
+                                            selectedItemId = null
+                                            when (item) {
+                                                is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
+                                                is FolderItem -> openedFolder = item
+                                            }
+                                        }
+                                        return@awaitEachGesture
+                                    }
+                                    val index = displayedItems.indexOfFirst { it.id == item.id }
+                                    if (index < 0) return@awaitEachGesture
+                                    draggedItemId = item.id
+                                    originalDragIndex = index
+                                    currentDragIndex = index
+                                    dragOffset = 0f
+                                    movedDuringDrag = false
+                                    selectedItemId = item.id
+
+                                    drag(down.id) { change ->
+                                        val amount = change.positionChange()
                                         change.consume()
                                         dragOffset += amount.y
+                                        if (abs(dragOffset) > viewConfiguration.touchSlop) {
+                                            selectedItemId = null
+                                            movedDuringDrag = true
+                                        }
                                         val layout = listState.layoutInfo
                                         val draggedInfo = layout.visibleItemsInfo.firstOrNull { it.key == item.id }
-                                            ?: return@detectDragGesturesAfterLongPress
+                                            ?: return@drag
                                         val draggedCenter = draggedInfo.offset + draggedInfo.size / 2f + dragOffset
                                         val targetInfo = layout.visibleItemsInfo.firstOrNull { info ->
                                             info.key != item.id && draggedCenter in info.offset.toFloat()..(info.offset + info.size).toFloat()
@@ -146,7 +173,6 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                                                 displayedItems = mutable
                                                 currentDragIndex = to
                                                 dragOffset += draggedInfo.offset - targetInfo.offset
-                                                movedDuringDrag = true
                                             }
                                         }
                                         val edge = 96.dp.toPx()
@@ -154,33 +180,28 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                                             draggedCenter < layout.viewportStartOffset + edge -> coroutineScope.launch { listState.scrollBy(-22.dp.toPx()) }
                                             draggedCenter > layout.viewportEndOffset - edge -> coroutineScope.launch { listState.scrollBy(22.dp.toPx()) }
                                         }
-                                    },
-                                    onDragEnd = {
-                                        if (movedDuringDrag && originalDragIndex >= 0 && currentDragIndex >= 0) {
-                                            actions.onMoveHomeItem(originalDragIndex, currentDragIndex)
-                                        } else {
-                                            selectedItemId = item.id
-                                        }
-                                        draggedItemId = null
-                                        dragOffset = 0f
-                                    },
-                                    onDragCancel = {
-                                        draggedItemId = null
-                                        dragOffset = 0f
-                                        displayedItems = state.homeItems
-                                    },
-                                )
+                                    }
+                                    if (movedDuringDrag && originalDragIndex >= 0 && currentDragIndex >= 0) {
+                                        actions.onMoveHomeItem(originalDragIndex, currentDragIndex)
+                                    }
+                                    draggedItemId = null
+                                    dragOffset = 0f
+                                }
                             }
-                            .combinedClickable(
-                                onClick = {
+                            .semantics {
+                                onClick {
                                     selectedItemId = null
                                     when (item) {
                                         is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
                                         is FolderItem -> openedFolder = item
                                     }
-                                },
-                                onLongClick = { selectedItemId = item.id },
-                            ),
+                                    true
+                                }
+                                onLongClick {
+                                    selectedItemId = item.id
+                                    true
+                                }
+                            },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -246,6 +267,7 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
 @Composable
 private fun ClockHeader(settings: LauncherSettings) {
     val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     val batteryPercentage = rememberBatteryPercentage()
     LaunchedEffect(Unit) {
@@ -255,7 +277,7 @@ private fun ClockHeader(settings: LauncherSettings) {
         }
     }
     Column(
-        modifier = Modifier.fillMaxWidth().padding(top = 78.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 92.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         val use24Hour = when (settings.clockFormat) {
@@ -266,12 +288,12 @@ private fun ClockHeader(settings: LauncherSettings) {
         Text(
             now.format(DateTimeFormatter.ofPattern(if (use24Hour) "HH:mm" else "h:mm a")),
             color = Color.White,
-            fontSize = 58.sp,
+            fontSize = 48.sp,
             fontWeight = FontWeight.Normal,
         )
         if (settings.showDate) {
             Text(
-                now.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(Locale.getDefault())),
+                now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale)),
                 color = Color.LightGray,
                 fontSize = 18.sp,
             )

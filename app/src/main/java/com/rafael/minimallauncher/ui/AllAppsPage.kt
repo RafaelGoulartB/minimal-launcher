@@ -3,8 +3,12 @@
 package com.rafael.minimallauncher.ui
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,8 +17,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -26,26 +35,131 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.rafael.minimallauncher.data.AppItem
 import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.HomeItemRef
 import com.rafael.minimallauncher.data.LauncherItem
+import kotlinx.coroutines.launch
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
 
 private sealed interface EditorDialog {
     data class RenameApp(val item: AppItem) : EditorDialog
     data class RenameFolder(val item: FolderItem) : EditorDialog
     data class NewFolder(val app: AppItem) : EditorDialog
+}
+
+private fun sectionLabel(label: String): String {
+    val first = label.trim().firstOrNull() ?: return "#"
+    return if (first.isLetter()) first.uppercaseChar().toString() else "#"
+}
+
+@Composable
+private fun SearchGlyph() {
+    Canvas(modifier = Modifier.size(28.dp)) {
+        val stroke = 2.4.dp.toPx()
+        drawCircle(
+            color = Color(0xFFBEBEBE),
+            radius = size.minDimension * 0.28f,
+            center = Offset(size.width * 0.42f, size.height * 0.4f),
+            style = Stroke(stroke),
+        )
+        drawLine(
+            color = Color(0xFFBEBEBE),
+            start = Offset(size.width * 0.61f, size.height * 0.6f),
+            end = Offset(size.width * 0.84f, size.height * 0.83f),
+            strokeWidth = stroke,
+        )
+    }
+}
+
+@Composable
+private fun GearButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(56.dp)
+            .semantics { contentDescription = "Settings" }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(36.dp)) {
+            val center = Offset(size.width / 2f, size.height / 2f)
+            val outerRadius = size.minDimension * 0.37f
+            val innerRadius = size.minDimension * 0.14f
+            val stroke = 2.8.dp.toPx()
+            drawCircle(Color.White, outerRadius * 0.72f, center, style = Stroke(stroke))
+            drawCircle(Color.White, innerRadius, center, style = Stroke(stroke))
+            repeat(8) { index ->
+                val angle = index * PI.toFloat() / 4f
+                drawLine(
+                    color = Color.White,
+                    start = Offset(
+                        center.x + cos(angle) * outerRadius * 0.68f,
+                        center.y + sin(angle) * outerRadius * 0.68f,
+                    ),
+                    end = Offset(
+                        center.x + cos(angle) * outerRadius,
+                        center.y + sin(angle) * outerRadius,
+                    ),
+                    strokeWidth = stroke,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AlphabetRail(
+    sections: List<Pair<String, Int>>,
+    modifier: Modifier = Modifier,
+    onSelect: (Int) -> Unit,
+) {
+    fun selectAt(y: Float, height: Float) {
+        if (height <= 0f) return
+        val slot = (y / height * sections.size).toInt().coerceIn(sections.indices)
+        onSelect(sections[slot].second)
+    }
+    Column(
+        modifier = modifier
+            .width(24.dp)
+            .pointerInput(sections) {
+                detectVerticalDragGestures(
+                    onDragStart = { selectAt(it.y, size.height.toFloat()) },
+                    onVerticalDrag = { change, _ -> selectAt(change.position.y, size.height.toFloat()) },
+                )
+            },
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        sections.forEach { (label, index) ->
+            Text(
+                label,
+                modifier = Modifier.clickable { onSelect(index) }.padding(vertical = 1.dp),
+                color = Color.LightGray,
+                fontSize = 13.sp,
+                lineHeight = 15.sp,
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -57,54 +171,94 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
     var openedFolder by remember { mutableStateOf<FolderItem?>(null) }
     var folderPickerApp by remember { mutableStateOf<AppItem?>(null) }
     var editorDialog by remember { mutableStateOf<EditorDialog?>(null) }
+    val listState = rememberLazyListState()
+    val scope = rememberCoroutineScope()
+    val sections = remember(state.drawerItems) {
+        state.drawerItems.mapIndexed { index, item -> sectionLabel(item.label) to index }
+            .distinctBy { it.first }
+    }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
-        Spacer(Modifier.height(54.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
+    Column(modifier = Modifier.fillMaxSize().padding(start = 20.dp, end = 4.dp)) {
+        Spacer(Modifier.height(38.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+        ) {
+            BasicTextField(
                 value = state.searchQuery,
                 onValueChange = actions.onSearchChange,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp)
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(Color(0xFF1B1B1B)),
                 singleLine = true,
-                label = { Text("Search apps") },
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 24.sp),
+                cursorBrush = SolidColor(Color.White),
+                decorationBox = { innerTextField ->
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        SearchGlyph()
+                        Spacer(Modifier.width(15.dp))
+                        Box(modifier = Modifier.weight(1f)) {
+                            if (state.searchQuery.isEmpty()) {
+                                Text("Search apps", color = Color(0xFF9A9A9A), fontSize = 24.sp)
+                            }
+                            innerTextField()
+                        }
+                    }
+                },
             )
-            TextButton(onClick = onOpenSettings) { Text("⚙", fontSize = 32.sp) }
+            GearButton(onClick = onOpenSettings)
         }
-        Spacer(Modifier.height(16.dp))
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 28.dp),
-        ) {
-            items(state.drawerItems, key = LauncherItem::id) { item ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .combinedClickable(
-                            onClick = {
-                                when (item) {
-                                    is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
-                                    is FolderItem -> openedFolder = item
-                                }
-                            },
-                            onLongClick = {
-                                when (item) {
-                                    is AppItem -> selectedApp = item
-                                    is FolderItem -> selectedFolder = item
-                                }
-                            },
+        Spacer(Modifier.height(18.dp))
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(end = if (state.searchQuery.isBlank()) 24.dp else 0.dp),
+                contentPadding = PaddingValues(bottom = 28.dp),
+            ) {
+                items(state.drawerItems, key = LauncherItem::id) { item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(60.dp)
+                            .combinedClickable(
+                                onClick = {
+                                    when (item) {
+                                        is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
+                                        is FolderItem -> openedFolder = item
+                                    }
+                                },
+                                onLongClick = {
+                                    when (item) {
+                                        is AppItem -> selectedApp = item
+                                        is FolderItem -> selectedFolder = item
+                                    }
+                                },
+                            ),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            item.label,
+                            color = Color.White,
+                            fontSize = 26.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
-                        .padding(horizontal = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        item.label,
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    }
                 }
+            }
+            if (state.searchQuery.isBlank() && sections.isNotEmpty()) {
+                AlphabetRail(
+                    sections = sections,
+                    modifier = Modifier.align(Alignment.CenterEnd),
+                    onSelect = { index -> scope.launch { listState.scrollToItem(index) } },
+                )
             }
         }
     }
