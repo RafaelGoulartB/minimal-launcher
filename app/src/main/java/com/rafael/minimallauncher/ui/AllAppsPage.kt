@@ -427,7 +427,7 @@ private fun ManagementSheet(title: String, onDismiss: () -> Unit, content: @Comp
         dragHandle = null,
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 28.dp),
+            modifier = Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Spacer(Modifier.weight(1f))
@@ -444,7 +444,7 @@ private fun ManagementSheet(title: String, onDismiss: () -> Unit, content: @Comp
 private fun ManagementAction(label: String, onClick: () -> Unit) {
     Text(
         label,
-        modifier = Modifier.fillMaxWidth().height(58.dp).clickable(onClick = onClick).padding(horizontal = 40.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().height(58.dp).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
         color = Color.White,
         fontSize = 24.sp,
     )
