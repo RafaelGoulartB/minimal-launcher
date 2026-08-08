@@ -95,7 +95,9 @@ internal fun SettingsPage(state: LauncherUiState, actions: LauncherActions, onBa
                 subtitle = if (state.dailyUsage.hasAccess) "Today's screen time is available." else "Required only for the Home usage summary.",
                 action = if (state.dailyUsage.hasAccess) null else "Open",
                 onClick = {
-                    context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    runCatching {
+                        context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
                 },
             )
         }

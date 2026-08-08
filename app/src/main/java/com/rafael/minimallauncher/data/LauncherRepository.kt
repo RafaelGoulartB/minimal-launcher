@@ -26,16 +26,18 @@ class LauncherRepository(private val context: Context) {
         val collator = Collator.getInstance(Locale.getDefault())
         activities
             .mapNotNull { resolveInfo ->
-                val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null
-                LauncherApp(
-                    label = resolveInfo.loadLabel(packageManager).toString(),
-                    componentName = activityInfo.run {
-                        android.content.ComponentName(packageName, name)
-                    },
-                )
+                // A single package with invalid resources must not take down the launcher.
+                runCatching {
+                    val activityInfo = resolveInfo.activityInfo ?: return@runCatching null
+                    LauncherApp(
+                        label = resolveInfo.loadLabel(packageManager).toString(),
+                        componentName = activityInfo.run {
+                            android.content.ComponentName(packageName, name)
+                        },
+                    )
+                }.getOrNull()
             }
             .distinctBy(LauncherApp::id)
             .sortedWith(compareBy(collator) { it.label })
     }
 }
-

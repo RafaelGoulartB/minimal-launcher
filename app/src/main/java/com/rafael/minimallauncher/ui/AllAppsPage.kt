@@ -176,7 +176,7 @@ private fun AlphabetRail(
     onSelect: (Int) -> Unit,
 ) {
     fun selectAt(y: Float, height: Float) {
-        if (height <= 0f) return
+        if (height <= 0f || sections.isEmpty()) return
         val slot = (y / height * sections.size).toInt().coerceIn(sections.indices)
         onSelect(sections[slot].second)
     }
@@ -446,13 +446,21 @@ internal fun AllAppsPage(
                 AlphabetRail(
                     sections = sections,
                     modifier = Modifier.align(Alignment.CenterEnd),
-                    onSelect = { index -> scope.launch { listState.scrollToItem(index) } },
+                    onSelect = { index ->
+                        scope.launch {
+                            if (index in drawerRows.indices) listState.scrollToItem(index)
+                        }
+                    },
                 )
             }
             if (showScrollToTop) {
                 ScrollToTopButton(
                     modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp),
-                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
+                    onClick = {
+                        scope.launch {
+                            if (drawerRows.isNotEmpty()) listState.animateScrollToItem(0)
+                        }
+                    },
                 )
             }
         }

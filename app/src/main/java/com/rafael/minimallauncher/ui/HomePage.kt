@@ -244,9 +244,9 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                     .then(
                         if (state.dailyUsage.hasAccess) Modifier
                         else Modifier.clickable {
-                            context.startActivity(
+                            runCatching { context.startActivity(
                                 Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                            )
+                            ) }
                         },
                     ),
                 color = Color.LightGray,
@@ -400,17 +400,19 @@ private fun rememberBatteryPercentage(): Int? {
         }
         fun register() {
             if (registered) return
-            val sticky = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
-            } else {
-                @Suppress("DEPRECATION")
-                context.registerReceiver(receiver, filter)
+            runCatching {
+                val sticky = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+                } else {
+                    @Suppress("DEPRECATION")
+                    context.registerReceiver(receiver, filter)
+                }
+                registered = true
+                sticky?.let { receiver.onReceive(context, it) }
             }
-            sticky?.let { receiver.onReceive(context, it) }
-            registered = true
         }
         fun unregister() {
-            if (registered) context.unregisterReceiver(receiver)
+            if (registered) runCatching { context.unregisterReceiver(receiver) }
             registered = false
         }
         val observer = LifecycleEventObserver { _, event ->

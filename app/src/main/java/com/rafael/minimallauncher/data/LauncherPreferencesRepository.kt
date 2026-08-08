@@ -8,7 +8,10 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.emptyPreferences
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import java.util.UUID
 
@@ -31,7 +34,13 @@ class LauncherPreferencesRepository(context: Context) {
         produceFile = { context.preferencesDataStoreFile(DATASTORE_NAME) },
     )
 
-    val preferences: Flow<LauncherPreferences> = dataStore.data.map(::decodePreferences)
+    val preferences: Flow<LauncherPreferences> = dataStore.data
+        .catch { exception ->
+            if (exception is CancellationException) throw exception
+            // HOME must remain usable even if the preferences file cannot be read.
+            emit(emptyPreferences())
+        }
+        .map(::decodePreferences)
 
     suspend fun migrateLegacyFavorites(orderedAppIds: List<String>) {
         dataStore.edit { values ->

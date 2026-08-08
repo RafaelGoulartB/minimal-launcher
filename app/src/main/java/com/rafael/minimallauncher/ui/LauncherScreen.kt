@@ -84,6 +84,10 @@ internal fun openApp(context: Context, item: AppItem, blockedIds: Set<String>) {
         context.startActivity(intent)
     } catch (_: ActivityNotFoundException) {
         Toast.makeText(context, "App is no longer available.", Toast.LENGTH_SHORT).show()
+    } catch (_: SecurityException) {
+        Toast.makeText(context, "Android did not allow this app to be opened.", Toast.LENGTH_SHORT).show()
+    } catch (_: RuntimeException) {
+        Toast.makeText(context, "App is no longer available.", Toast.LENGTH_SHORT).show()
     }
 }
 

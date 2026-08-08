@@ -64,7 +64,7 @@ release: ## Assemble the release APK.
 install: debug ## Install or update the debug APK on the selected device.
 	$(GRADLE) $(MODULE):installDebug
 
-run: install ## Install, then open Minimal Launcher on the selected device.
+run: install home ## Install, keep Minimal Launcher as Home, then open it on the selected device.
 	$(ADB_DEVICE) shell am start -W -n $(APP_ID)/.MainActivity
 
 stop: ## Stop Minimal Launcher on the selected device.
@@ -84,8 +84,10 @@ lint: ## Run Android lint for the debug variant.
 unit-test: ## Run local JVM unit tests.
 	$(GRADLE) $(MODULE):testDebugUnitTest
 
-ui-test: ## Run instrumentation tests on the selected device.
+ui-test: ## Run instrumentation tests, then restore the launcher on the selected device.
 	$(GRADLE) $(MODULE):connectedDebugAndroidTest
+	$(GRADLE) $(MODULE):installDebug
+	$(ADB_DEVICE) shell cmd role add-role-holder --user 0 android.app.role.HOME $(APP_ID)
 
 test: unit-test ui-test ## Run all available tests.
 

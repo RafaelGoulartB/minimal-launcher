@@ -1,6 +1,7 @@
 package com.rafael.minimallauncher.ui
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rafael.minimallauncher.data.ClockFormat
@@ -22,6 +23,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.CancellationException
 import java.text.Collator
 import java.util.Locale
 
@@ -47,6 +50,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     private val apps = MutableStateFlow<List<LauncherApp>>(emptyList())
     private val searchQuery = MutableStateFlow("")
     private val dailyUsage = MutableStateFlow(DailyUsage())
+    private var appsRefreshJob: Job? = null
+    private var usageRefreshJob: Job? = null
 
     val uiState: StateFlow<LauncherUiState> = combine(
         apps,
@@ -120,10 +125,18 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refreshApps() {
-        viewModelScope.launch {
-            val installedApps = launcherRepository.loadApps()
-            apps.value = installedApps
-            preferencesRepository.migrateLegacyFavorites(installedApps.map(LauncherApp::id))
+        if (appsRefreshJob?.isActive == true) return
+        appsRefreshJob = viewModelScope.launch {
+            try {
+                val installedApps = launcherRepository.loadApps()
+                apps.value = installedApps
+                preferencesRepository.migrateLegacyFavorites(installedApps.map(LauncherApp::id))
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                // A broken package entry or transient PackageManager failure must not kill HOME.
+                Log.e(TAG, "Unable to refresh installed apps", exception)
+            }
         }
     }
 
@@ -132,7 +145,17 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refreshUsage() {
-        viewModelScope.launch { dailyUsage.value = usageStatsRepository.loadTodayUsage() }
+        if (usageRefreshJob?.isActive == true) return
+        usageRefreshJob = viewModelScope.launch {
+            try {
+                dailyUsage.value = usageStatsRepository.loadTodayUsage()
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                Log.e(TAG, "Unable to refresh usage stats", exception)
+                dailyUsage.value = DailyUsage()
+            }
+        }
     }
 
     fun toggleFavorite(app: LauncherApp) {
@@ -195,11 +218,24 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         launchPreferenceUpdate { preferencesRepository.updateSettings(transform) }
 
     private fun launchPreferenceUpdate(block: suspend () -> Unit) {
-        viewModelScope.launch { block() }
+        viewModelScope.launch {
+            try {
+                block()
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                // Preference I/O is non-critical; keep the launcher available as HOME.
+                Log.e(TAG, "Unable to update launcher preferences", exception)
+            }
+        }
     }
 
     private fun LauncherItem.homeRef(): HomeItemRef = when (this) {
         is AppItem -> HomeItemRef.App(id)
         is FolderItem -> HomeItemRef.Folder(id)
+    }
+
+    private companion object {
+        const val TAG = "LauncherViewModel"
     }
 }
