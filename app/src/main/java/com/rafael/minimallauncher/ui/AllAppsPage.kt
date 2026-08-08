@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.AlertDialog
@@ -32,6 +33,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -162,6 +164,50 @@ private fun AlphabetRail(
     }
 }
 
+@Composable
+private fun FolderGlyph() {
+    Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = 1.8.dp.toPx()
+        val left = 2.dp.toPx()
+        val top = 6.dp.toPx()
+        val right = size.width - 2.dp.toPx()
+        val bottom = size.height - 5.dp.toPx()
+        val tabRight = left + size.width * 0.38f
+        drawLine(Color(0xFFBDBDBD), Offset(left, top), Offset(left + 6.dp.toPx(), top))
+        drawLine(Color(0xFFBDBDBD), Offset(left + 6.dp.toPx(), top), Offset(tabRight, top + 4.dp.toPx()))
+        drawLine(Color(0xFFBDBDBD), Offset(tabRight, top + 4.dp.toPx()), Offset(right, top + 4.dp.toPx()))
+        drawRoundRect(
+            color = Color(0xFFBDBDBD),
+            topLeft = Offset(left, top + 2.dp.toPx()),
+            size = androidx.compose.ui.geometry.Size(right - left, bottom - top),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+            style = Stroke(stroke),
+        )
+    }
+}
+
+@Composable
+private fun ScrollToTopButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .size(52.dp)
+            .background(Color.White, CircleShape)
+            .semantics { contentDescription = "Scroll to top" }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(25.dp)) {
+            val stroke = 2.4.dp.toPx()
+            val centerX = size.width / 2f
+            val top = 3.dp.toPx()
+            val bottom = size.height - 3.dp.toPx()
+            drawLine(Color.Black, Offset(centerX, bottom), Offset(centerX, top), strokeWidth = stroke)
+            drawLine(Color.Black, Offset(centerX, top), Offset(5.dp.toPx(), 9.dp.toPx()), strokeWidth = stroke)
+            drawLine(Color.Black, Offset(centerX, top), Offset(size.width - 5.dp.toPx(), 9.dp.toPx()), strokeWidth = stroke)
+        }
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpenSettings: () -> Unit) {
@@ -176,6 +222,11 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
     val sections = remember(state.drawerItems) {
         state.drawerItems.mapIndexed { index, item -> sectionLabel(item.label) to index }
             .distinctBy { it.first }
+    }
+    val showScrollToTop by remember {
+        derivedStateOf {
+            listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
+        }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(start = 20.dp, end = 4.dp)) {
@@ -220,7 +271,7 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(end = if (state.searchQuery.isBlank()) 24.dp else 0.dp),
-                contentPadding = PaddingValues(bottom = 28.dp),
+                contentPadding = PaddingValues(bottom = 88.dp),
             ) {
                 items(state.drawerItems, key = LauncherItem::id) { item ->
                     Row(
@@ -243,9 +294,13 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
                             ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
+                        if (item is FolderItem) {
+                            FolderGlyph()
+                            Spacer(Modifier.width(12.dp))
+                        }
                         Text(
                             item.label,
-                            color = Color.White,
+                            color = if (item is FolderItem) Color(0xFFE4E4E4) else Color.White,
                             fontSize = 26.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
@@ -258,6 +313,12 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
                     sections = sections,
                     modifier = Modifier.align(Alignment.CenterEnd),
                     onSelect = { index -> scope.launch { listState.scrollToItem(index) } },
+                )
+            }
+            if (showScrollToTop) {
+                ScrollToTopButton(
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp),
+                    onClick = { scope.launch { listState.animateScrollToItem(0) } },
                 )
             }
         }
