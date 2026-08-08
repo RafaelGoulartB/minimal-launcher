@@ -391,7 +391,7 @@ internal fun AllAppsPage(
                             item.label,
                             modifier = if (item is FolderItem) Modifier.weight(1f) else Modifier,
                             color = if (item is FolderItem) Color(0xFFE4E4E4) else Color.White,
-                            fontSize = 26.sp,
+                            fontSize = 21.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -575,8 +575,8 @@ private fun ManagementSheet(title: String, onDismiss: () -> Unit, content: @Comp
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Spacer(Modifier.weight(1f))
-            Text(title, modifier = Modifier.weight(4f), textAlign = TextAlign.Center, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
-            Text("×", modifier = Modifier.weight(1f).clickable(onClick = onDismiss), textAlign = TextAlign.End, fontSize = 42.sp)
+            Text(title, modifier = Modifier.weight(4f), textAlign = TextAlign.Center, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+            Text("×", modifier = Modifier.weight(1f).clickable(onClick = onDismiss), textAlign = TextAlign.End, fontSize = 34.sp)
         }
         HorizontalDivider(color = Color.LightGray)
         content()
@@ -590,7 +590,7 @@ private fun ManagementAction(label: String, onClick: () -> Unit) {
         label,
         modifier = Modifier.fillMaxWidth().height(58.dp).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
         color = Color.White,
-        fontSize = 24.sp,
+        fontSize = 19.sp,
     )
 }
 

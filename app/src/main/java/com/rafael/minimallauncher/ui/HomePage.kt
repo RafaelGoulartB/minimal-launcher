@@ -208,7 +208,7 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                             item.label,
                             modifier = Modifier.weight(1f),
                             color = Color.White,
-                            fontSize = 26.sp,
+                            fontSize = 21.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
