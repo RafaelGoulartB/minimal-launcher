@@ -71,6 +71,11 @@ private sealed interface EditorDialog {
     data class NewFolder(val app: AppItem) : EditorDialog
 }
 
+private data class DrawerRow(
+    val item: LauncherItem,
+    val isFolderChild: Boolean = false,
+)
+
 private fun sectionLabel(label: String): String {
     val first = label.trim().firstOrNull() ?: return "#"
     return if (first.isLetter()) first.uppercaseChar().toString() else "#"
@@ -187,6 +192,37 @@ private fun FolderGlyph() {
 }
 
 @Composable
+private fun FolderExpandGlyph(expanded: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(28.dp)
+            .semantics {
+                contentDescription = if (expanded) "Collapse folder" else "Expand folder"
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(18.dp)) {
+            val stroke = 2.dp.toPx()
+            val centerX = size.width / 2f
+            val edgeX = 3.dp.toPx()
+            val edgeY = if (expanded) size.height - 4.dp.toPx() else 4.dp.toPx()
+            drawLine(
+                Color(0xFFBDBDBD),
+                Offset(edgeX, edgeY),
+                Offset(centerX, if (expanded) 4.dp.toPx() else size.height - 4.dp.toPx()),
+                strokeWidth = stroke,
+            )
+            drawLine(
+                Color(0xFFBDBDBD),
+                Offset(centerX, if (expanded) 4.dp.toPx() else size.height - 4.dp.toPx()),
+                Offset(size.width - edgeX, edgeY),
+                strokeWidth = stroke,
+            )
+        }
+    }
+}
+
+@Composable
 private fun ScrollToTopButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
         modifier = modifier
@@ -214,13 +250,23 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
     val context = LocalContext.current
     var selectedApp by remember { mutableStateOf<AppItem?>(null) }
     var selectedFolder by remember { mutableStateOf<FolderItem?>(null) }
-    var openedFolder by remember { mutableStateOf<FolderItem?>(null) }
+    var expandedFolderIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var folderPickerApp by remember { mutableStateOf<AppItem?>(null) }
     var editorDialog by remember { mutableStateOf<EditorDialog?>(null) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val sections = remember(state.drawerItems) {
-        state.drawerItems.mapIndexed { index, item -> sectionLabel(item.label) to index }
+    val drawerRows = remember(state.drawerItems, expandedFolderIds, state.searchQuery) {
+        state.drawerItems.flatMap { item ->
+            buildList {
+                add(DrawerRow(item))
+                if (state.searchQuery.isBlank() && item is FolderItem && item.id in expandedFolderIds) {
+                    addAll(item.apps.map { app -> DrawerRow(app, isFolderChild = true) })
+                }
+            }
+        }
+    }
+    val sections = remember(drawerRows) {
+        drawerRows.mapIndexed { index, row -> sectionLabel(row.item.label) to index }
             .distinctBy { it.first }
     }
     val showScrollToTop by remember {
@@ -273,16 +319,24 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
                     .padding(end = if (state.searchQuery.isBlank()) 24.dp else 0.dp),
                 contentPadding = PaddingValues(bottom = 88.dp),
             ) {
-                items(state.drawerItems, key = LauncherItem::id) { item ->
+                items(drawerRows, key = { row -> "${row.item.id}:${row.isFolderChild}" }) { row ->
+                    val item = row.item
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(60.dp)
+                            .padding(start = if (row.isFolderChild) 26.dp else 0.dp)
                             .combinedClickable(
                                 onClick = {
                                     when (item) {
                                         is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
-                                        is FolderItem -> openedFolder = item
+                                        is FolderItem -> {
+                                            expandedFolderIds = if (item.id in expandedFolderIds) {
+                                                expandedFolderIds - item.id
+                                            } else {
+                                                expandedFolderIds + item.id
+                                            }
+                                        }
                                     }
                                 },
                                 onLongClick = {
@@ -294,17 +348,32 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
                             ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (item is FolderItem) {
-                            FolderGlyph()
+                        if (row.isFolderChild) {
+                            Box(
+                                modifier = Modifier
+                                    .width(2.dp)
+                                    .height(30.dp)
+                                    .background(Color(0xFF555555)),
+                            )
                             Spacer(Modifier.width(12.dp))
+                        }
+                        if (item is FolderItem) {
+                            FolderExpandGlyph(expanded = item.id in expandedFolderIds)
+                            Spacer(Modifier.width(10.dp))
                         }
                         Text(
                             item.label,
+                            modifier = if (item is FolderItem) Modifier.weight(1f) else Modifier,
                             color = if (item is FolderItem) Color(0xFFE4E4E4) else Color.White,
                             fontSize = 26.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (item is FolderItem) {
+                            Spacer(Modifier.width(12.dp))
+                            FolderGlyph()
+                            Spacer(Modifier.width(8.dp))
+                        }
                     }
                 }
             }
@@ -379,18 +448,6 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
             onDelete = {
                 actions.onDeleteFolder(item.id)
                 selectedFolder = null
-            },
-        )
-    }
-
-    openedFolder?.let { folder ->
-        FolderContentsSheet(
-            folder = folder,
-            blockedIds = state.preferences.blockedAppIds,
-            onDismiss = { openedFolder = null },
-            onLongClickApp = { app ->
-                openedFolder = null
-                selectedApp = app
             },
         )
     }

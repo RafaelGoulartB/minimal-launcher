@@ -5,11 +5,14 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.geometry.Offset
 import com.rafael.minimallauncher.data.AppItem
 import com.rafael.minimallauncher.data.ClockFormat
+import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.LauncherApp
+import com.rafael.minimallauncher.data.LauncherFolder
 import org.junit.Rule
 import org.junit.Test
 import org.junit.Assert.assertEquals
@@ -93,6 +96,31 @@ class LauncherUiTest {
         }
 
         composeRule.onNodeWithContentDescription("Settings").assertExists()
+    }
+
+    @Test
+    fun tappingFolderExpandsAppsInline() {
+        val child = AppItem(
+            LauncherApp("Notes", ComponentName("com.example.notes", "com.example.notes.Main")),
+        )
+        val folder = FolderItem(
+            LauncherFolder("folder-id", "Tools"),
+            apps = listOf(child),
+        )
+        composeRule.setContent {
+            MinimalLauncherTheme {
+                AllAppsPage(
+                    state = LauncherUiState(drawerItems = listOf(folder), isLoading = false),
+                    actions = actions(),
+                    onOpenSettings = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Notes").assertDoesNotExist()
+        composeRule.onNodeWithText("Tools").performClick()
+        composeRule.onNodeWithText("Notes").assertExists()
+        composeRule.onNodeWithContentDescription("Collapse folder").assertExists()
     }
 
     private fun actions() = LauncherActions(
