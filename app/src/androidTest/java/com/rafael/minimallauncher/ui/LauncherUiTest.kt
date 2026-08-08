@@ -123,6 +123,31 @@ class LauncherUiTest {
         composeRule.onNodeWithContentDescription("Collapse folder").assertExists()
     }
 
+    @Test
+    fun homeFolderExpandsInlineLikeDrawer() {
+        val child = AppItem(
+            LauncherApp("Notes", ComponentName("com.example.notes", "com.example.notes.Main")),
+        )
+        val folder = FolderItem(
+            LauncherFolder("folder-id", "Tools"),
+            apps = listOf(child),
+        )
+        composeRule.setContent {
+            MinimalLauncherTheme {
+                HomePage(
+                    state = LauncherUiState(homeItems = listOf(folder), isLoading = false),
+                    actions = actions(),
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("1 app").assertExists()
+        composeRule.onNodeWithText("Notes").assertDoesNotExist()
+        composeRule.onNodeWithText("Tools").performClick()
+        composeRule.onNodeWithText("Notes").assertExists()
+        composeRule.onNodeWithContentDescription("Collapse folder").assertExists()
+    }
+
     private fun actions() = LauncherActions(
         onSearchChange = {},
         onAddHomeItem = {},

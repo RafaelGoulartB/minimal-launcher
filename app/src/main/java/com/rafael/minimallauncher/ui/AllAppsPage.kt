@@ -337,18 +337,28 @@ private fun FolderExpandGlyph(expanded: Boolean) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DrawerFolderRow(
+internal fun DrawerFolderRow(
     item: FolderItem,
     expanded: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    trailingContent: @Composable (() -> Unit)? = null,
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val appCount = item.apps.size
+    val interactionModifier = if (onClick != null) {
+        Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick ?: {},
+        )
+    } else {
+        Modifier
+    }
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(44.dp)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            .then(interactionModifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
@@ -366,24 +376,34 @@ private fun DrawerFolderRow(
             maxLines = 1,
         )
         Spacer(Modifier.width(4.dp))
+        trailingContent?.invoke()
         FolderExpandGlyph(expanded = expanded)
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun DrawerAppRow(
+internal fun DrawerAppRow(
     item: AppItem,
     isFolderChild: Boolean,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
+    val interactionModifier = if (onClick != null) {
+        Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = onLongClick ?: {},
+        )
+    } else {
+        Modifier
+    }
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(44.dp)
             .padding(start = if (isFolderChild) 14.dp else 0.dp)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+            .then(interactionModifier),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (isFolderChild) {
