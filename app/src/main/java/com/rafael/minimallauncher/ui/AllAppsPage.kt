@@ -348,7 +348,7 @@ internal fun AllAppsPage(
                     .clip(RoundedCornerShape(30.dp))
                     .background(Color(0xFF1B1B1B)),
                 singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 24.sp),
+                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 20.sp),
                 cursorBrush = SolidColor(Color.White),
                 decorationBox = { innerTextField ->
                     Row(
@@ -359,7 +359,7 @@ internal fun AllAppsPage(
                         Spacer(Modifier.width(15.dp))
                         Box(modifier = Modifier.weight(1f)) {
                             if (searchFieldValue.text.isEmpty()) {
-                                Text("Search apps", color = Color(0xFF9A9A9A), fontSize = 24.sp)
+                                Text("Search apps", color = Color(0xFF9A9A9A), fontSize = 20.sp)
                             }
                             innerTextField()
                         }
