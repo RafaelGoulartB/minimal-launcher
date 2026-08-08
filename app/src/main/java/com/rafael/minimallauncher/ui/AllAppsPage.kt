@@ -173,6 +173,7 @@ private fun GearButton(onClick: () -> Unit) {
 @Composable
 private fun AlphabetRail(
     sections: List<Pair<String, Int>>,
+    activeLabel: String?,
     modifier: Modifier = Modifier,
     onSelect: (Int) -> Unit,
 ) {
@@ -193,12 +194,14 @@ private fun AlphabetRail(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         sections.forEach { (label, index) ->
+            val isActive = label == activeLabel
             Text(
                 label,
                 modifier = Modifier.clickable { onSelect(index) }.padding(vertical = 1.dp),
-                color = Color.LightGray,
-                fontSize = 13.sp,
+                color = if (isActive) Color.White else Color(0xFF6E6E6E),
+                fontSize = if (isActive) 14.sp else 13.sp,
                 lineHeight = 15.sp,
+                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
             )
         }
     }
@@ -352,6 +355,12 @@ internal fun AllAppsPage(
         drawerRows.mapIndexed { index, row -> sectionLabel(row.item.label) to index }
             .distinctBy { it.first }
     }
+    val activeSectionLabel by remember(sections) {
+        derivedStateOf {
+            val visibleIndex = listState.firstVisibleItemIndex
+            sections.lastOrNull { (_, startIndex) -> startIndex <= visibleIndex }?.first
+        }
+    }
     val isSearching = state.searchQuery.isNotBlank()
     val showScrollToTop by remember {
         derivedStateOf {
@@ -468,6 +477,7 @@ internal fun AllAppsPage(
             if (!isSearching && sections.isNotEmpty()) {
                 AlphabetRail(
                     sections = sections,
+                    activeLabel = activeSectionLabel,
                     modifier = Modifier.align(Alignment.CenterEnd),
                     onSelect = { index ->
                         scope.launch {
