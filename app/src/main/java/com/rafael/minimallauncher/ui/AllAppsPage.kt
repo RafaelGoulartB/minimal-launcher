@@ -51,6 +51,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -103,6 +104,33 @@ private fun SearchGlyph() {
             end = Offset(size.width * 0.84f, size.height * 0.83f),
             strokeWidth = stroke,
         )
+    }
+}
+
+@Composable
+private fun ClearSearchButton(onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .semantics { contentDescription = "Clear search" }
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(22.dp)) {
+            val stroke = 2.4.dp.toPx()
+            drawLine(
+                color = Color(0xFFBEBEBE),
+                start = Offset(size.width * 0.2f, size.height * 0.2f),
+                end = Offset(size.width * 0.8f, size.height * 0.8f),
+                strokeWidth = stroke,
+            )
+            drawLine(
+                color = Color(0xFFBEBEBE),
+                start = Offset(size.width * 0.8f, size.height * 0.2f),
+                end = Offset(size.width * 0.2f, size.height * 0.8f),
+                strokeWidth = stroke,
+            )
+        }
     }
 }
 
@@ -262,6 +290,7 @@ internal fun AllAppsPage(
     val searchFocusRequester = remember { FocusRequester() }
     val keyboardController = LocalSoftwareKeyboardController.current
     val focusManager = LocalFocusManager.current
+    var searchFieldValue by remember { mutableStateOf(TextFieldValue(state.searchQuery)) }
     var selectedApp by remember { mutableStateOf<AppItem?>(null) }
     var selectedFolder by remember { mutableStateOf<FolderItem?>(null) }
     var expandedFolderIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -307,8 +336,11 @@ internal fun AllAppsPage(
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
         ) {
             BasicTextField(
-                value = state.searchQuery,
-                onValueChange = actions.onSearchChange,
+                value = searchFieldValue,
+                onValueChange = { value ->
+                    searchFieldValue = value
+                    actions.onSearchChange(value.text)
+                },
                 modifier = Modifier
                     .weight(1f)
                     .height(56.dp)
@@ -326,10 +358,17 @@ internal fun AllAppsPage(
                         SearchGlyph()
                         Spacer(Modifier.width(15.dp))
                         Box(modifier = Modifier.weight(1f)) {
-                            if (state.searchQuery.isEmpty()) {
+                            if (searchFieldValue.text.isEmpty()) {
                                 Text("Search apps", color = Color(0xFF9A9A9A), fontSize = 24.sp)
                             }
                             innerTextField()
+                        }
+                        if (searchFieldValue.text.isNotEmpty()) {
+                            ClearSearchButton {
+                                searchFieldValue = TextFieldValue("")
+                                actions.onSearchChange("")
+                                searchFocusRequester.requestFocus()
+                            }
                         }
                     }
                 },
