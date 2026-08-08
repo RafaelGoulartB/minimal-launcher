@@ -8,12 +8,16 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
+import android.provider.Settings
+import android.text.format.DateFormat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -52,9 +56,12 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.rafael.minimallauncher.data.AppItem
+import com.rafael.minimallauncher.data.ClockFormat
 import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.HomeItemRef
 import com.rafael.minimallauncher.data.LauncherItem
+import com.rafael.minimallauncher.data.LauncherSettings
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
@@ -81,8 +88,15 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
         if (selectedItemId != null && state.homeItems.none { it.id == selectedItemId }) selectedItemId = null
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
-        ClockHeader()
+    RefreshUsageWhileVisible(actions.onRefreshUsage)
+    Box(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 32.dp)
+            .padding(bottom = if (state.preferences.settings.showDailyUsage) 58.dp else 0.dp),
+    ) {
+        ClockHeader(state.preferences.settings)
         Spacer(Modifier.height(46.dp))
         when {
             state.isLoading -> Text("Loading apps…", color = Color.Gray)
@@ -195,6 +209,30 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
             }
         }
     }
+        if (state.preferences.settings.showDailyUsage) {
+            val usageText = if (state.dailyUsage.hasAccess) {
+                "Today's Usage: ${formatUsageDuration(state.dailyUsage.durationMillis ?: 0L)}"
+            } else {
+                "Enable usage access"
+            }
+            Text(
+                usageText,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 28.dp)
+                    .then(
+                        if (state.dailyUsage.hasAccess) Modifier
+                        else Modifier.clickable {
+                            context.startActivity(
+                                Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                            )
+                        },
+                    ),
+                color = Color.LightGray,
+                fontSize = 16.sp,
+            )
+        }
+    }
     openedFolder?.let { folder ->
         FolderContentsSheet(
             folder = folder,
@@ -206,7 +244,8 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
 }
 
 @Composable
-private fun ClockHeader() {
+private fun ClockHeader(settings: LauncherSettings) {
+    val context = LocalContext.current
     var now by remember { mutableStateOf(LocalDateTime.now()) }
     val batteryPercentage = rememberBatteryPercentage()
     LaunchedEffect(Unit) {
@@ -219,14 +258,70 @@ private fun ClockHeader() {
         modifier = Modifier.fillMaxWidth().padding(top = 78.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(now.format(DateTimeFormatter.ofPattern("HH:mm")), color = Color.White, fontSize = 58.sp, fontWeight = FontWeight.Normal)
+        val use24Hour = when (settings.clockFormat) {
+            ClockFormat.SYSTEM -> DateFormat.is24HourFormat(context)
+            ClockFormat.TWELVE_HOUR -> false
+            ClockFormat.TWENTY_FOUR_HOUR -> true
+        }
         Text(
-            now.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(Locale.getDefault())),
-            color = Color.LightGray,
-            fontSize = 18.sp,
+            now.format(DateTimeFormatter.ofPattern(if (use24Hour) "HH:mm" else "h:mm a")),
+            color = Color.White,
+            fontSize = 58.sp,
+            fontWeight = FontWeight.Normal,
         )
-        Spacer(Modifier.height(8.dp))
-        BatteryIndicator(batteryPercentage)
+        if (settings.showDate) {
+            Text(
+                now.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(Locale.getDefault())),
+                color = Color.LightGray,
+                fontSize = 18.sp,
+            )
+        }
+        if (settings.showBattery) {
+            Spacer(Modifier.height(8.dp))
+            BatteryIndicator(batteryPercentage)
+        }
+    }
+}
+
+internal fun formatUsageDuration(durationMillis: Long): String {
+    val totalMinutes = durationMillis.coerceAtLeast(0L) / 60_000L
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
+}
+
+@Composable
+private fun RefreshUsageWhileVisible(onRefresh: () -> Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
+    DisposableEffect(lifecycleOwner, onRefresh) {
+        var refreshJob: Job? = null
+        fun start() {
+            if (refreshJob != null) return
+            refreshJob = scope.launch {
+                while (true) {
+                    onRefresh()
+                    delay(60_000)
+                }
+            }
+        }
+        fun stop() {
+            refreshJob?.cancel()
+            refreshJob = null
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> start()
+                Lifecycle.Event.ON_STOP -> stop()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) start()
+        onDispose {
+            stop()
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
     }
 }
 

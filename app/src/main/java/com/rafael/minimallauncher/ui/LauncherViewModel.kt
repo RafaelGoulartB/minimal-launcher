@@ -12,6 +12,8 @@ import com.rafael.minimallauncher.data.LauncherItem
 import com.rafael.minimallauncher.data.LauncherPreferences
 import com.rafael.minimallauncher.data.LauncherPreferencesRepository
 import com.rafael.minimallauncher.data.LauncherRepository
+import com.rafael.minimallauncher.data.DailyUsage
+import com.rafael.minimallauncher.data.UsageStatsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +36,7 @@ data class LauncherUiState(
     val homeItems: List<LauncherItem> = emptyList(),
     val folders: List<FolderItem> = emptyList(),
     val preferences: LauncherPreferences = LauncherPreferences(),
+    val dailyUsage: DailyUsage = DailyUsage(),
     val searchQuery: String = "",
     val isLoading: Boolean = true,
 )
@@ -41,14 +44,17 @@ data class LauncherUiState(
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
     private val launcherRepository = LauncherRepository(application)
     private val preferencesRepository = LauncherPreferencesRepository(application)
+    private val usageStatsRepository = UsageStatsRepository(application)
     private val apps = MutableStateFlow<List<LauncherApp>>(emptyList())
     private val searchQuery = MutableStateFlow("")
+    private val dailyUsage = MutableStateFlow(DailyUsage())
 
     val uiState: StateFlow<LauncherUiState> = combine(
         apps,
         preferencesRepository.preferences,
         searchQuery.debounce(120),
-    ) { installedApps, preferences, query ->
+        dailyUsage,
+    ) { installedApps, preferences, query, usage ->
         val collator = Collator.getInstance(Locale.getDefault())
         val itemComparator = Comparator<LauncherItem> { first, second -> collator.compare(first.label, second.label) }
         val favoriteIds = preferences.homeItems.filterIsInstance<HomeItemRef.App>().mapTo(mutableSetOf()) { it.value }
@@ -99,6 +105,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             homeItems = homeItems,
             folders = folderItems.values.sortedWith(compareBy(collator) { it.label }),
             preferences = preferences,
+            dailyUsage = usage,
             searchQuery = query,
             isLoading = false,
         )
@@ -110,6 +117,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     init {
         refreshApps()
+        refreshUsage()
     }
 
     fun refreshApps() {
@@ -122,6 +130,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun setSearchQuery(value: String) {
         searchQuery.value = value
+    }
+
+    fun refreshUsage() {
+        viewModelScope.launch { dailyUsage.value = usageStatsRepository.loadTodayUsage() }
     }
 
     fun toggleFavorite(app: LauncherApp) {

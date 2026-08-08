@@ -50,7 +50,7 @@ private sealed interface EditorDialog {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions) {
+internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpenSettings: () -> Unit) {
     val context = LocalContext.current
     var selectedApp by remember { mutableStateOf<AppItem?>(null) }
     var selectedFolder by remember { mutableStateOf<FolderItem?>(null) }
@@ -60,13 +60,16 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions) {
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
         Spacer(Modifier.height(54.dp))
-        OutlinedTextField(
-            value = state.searchQuery,
-            onValueChange = actions.onSearchChange,
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text("Search apps") },
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(
+                value = state.searchQuery,
+                onValueChange = actions.onSearchChange,
+                modifier = Modifier.weight(1f),
+                singleLine = true,
+                label = { Text("Search apps") },
+            )
+            TextButton(onClick = onOpenSettings) { Text("⚙", fontSize = 32.sp) }
+        }
         Spacer(Modifier.height(16.dp))
         LazyColumn(
             modifier = Modifier.fillMaxSize(),

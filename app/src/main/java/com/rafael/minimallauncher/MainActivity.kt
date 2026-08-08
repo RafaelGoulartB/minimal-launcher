@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
                         onShowDateChange = launcherViewModel::setShowDate,
                         onShowBatteryChange = launcherViewModel::setShowBattery,
                         onShowDailyUsageChange = launcherViewModel::setShowDailyUsage,
+                        onRefreshUsage = launcherViewModel::refreshUsage,
                     ),
                 )
             }
@@ -49,5 +50,6 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Refresh when returning from installation/uninstallation without a permanent receiver.
         launcherViewModel.refreshApps()
+        launcherViewModel.refreshUsage()
     }
 }

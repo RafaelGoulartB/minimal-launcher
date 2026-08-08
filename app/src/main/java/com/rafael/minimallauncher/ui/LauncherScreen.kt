@@ -11,6 +11,11 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.activity.compose.BackHandler
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import com.rafael.minimallauncher.data.AppItem
@@ -34,6 +39,7 @@ data class LauncherActions(
     val onShowDateChange: (Boolean) -> Unit,
     val onShowBatteryChange: (Boolean) -> Unit,
     val onShowDailyUsageChange: (Boolean) -> Unit,
+    val onRefreshUsage: () -> Unit,
 )
 
 @Composable
@@ -41,6 +47,12 @@ fun LauncherScreen(
     state: LauncherUiState,
     actions: LauncherActions,
 ) {
+    var showSettings by remember { mutableStateOf(false) }
+    BackHandler(enabled = showSettings) { showSettings = false }
+    if (showSettings) {
+        SettingsPage(state = state, actions = actions, onBack = { showSettings = false })
+        return
+    }
     val pagerState = rememberPagerState(pageCount = { 2 })
     HorizontalPager(
         state = pagerState,
@@ -48,7 +60,7 @@ fun LauncherScreen(
     ) { page ->
         when (page) {
             0 -> HomePage(state, actions)
-            else -> AllAppsPage(state, actions)
+            else -> AllAppsPage(state, actions, onOpenSettings = { showSettings = true })
         }
     }
 }
