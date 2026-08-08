@@ -1,0 +1,140 @@
+/* Minimal Launcher — landing page styles */
+:root {
+  --bg: #09090b;
+  --bg-elev: #0c0c0e;
+  --bg-card: #111113;
+  --fg: #fafafa;
+  --fg-muted: #a1a1aa;
+  --fg-dim: #71717a;
+  --fg-faint: #52525b;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --accent: oklch(0.78 0.03 250);
+  --accent-dim: oklch(0.78 0.03 250 / 0.14);
+  --ok: oklch(72% 0.16 150);
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "ss02";
+}
+
+#nav.is-scrolled {
+  border-bottom-color: var(--border);
+  background: rgba(9, 9, 11, 0.88);
+}
+
+.tile {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.04), transparent);
+  transition: border-color 0.2s ease, transform 0.3s ease;
+}
+
+.tile:hover {
+  border-color: var(--border-strong);
+}
+
+.phone-frame {
+  position: relative;
+  overflow: hidden;
+  padding: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 36px;
+  background: #000;
+  box-shadow:
+    0 30px 60px -20px rgba(0, 0, 0, 0.65),
+    0 8px 20px -8px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.phone-frame::before {
+  position: absolute;
+  z-index: 2;
+  top: 14px;
+  left: 50%;
+  width: 60px;
+  height: 16px;
+  border-radius: 999px;
+  background: #000;
+  content: "";
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.phone-frame img {
+  display: block;
+  border-radius: 28px;
+}
+
+.tilt {
+  transform: rotateY(-6deg) rotateX(2deg);
+}
+
+.float-tile {
+  animation: floatDrift 9s ease-in-out infinite;
+  box-shadow:
+    0 8px 24px -8px rgba(0, 0, 0, 0.6),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+@keyframes floatDrift {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-10px) rotate(-2deg); }
+  50% { transform: translateY(-4px) rotate(1deg); }
+  75% { transform: translateY(-12px) rotate(-1deg); }
+}
+
+.fade-in {
+  animation: fadeIn 0.9s ease-out both;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.caret-blink {
+  animation: blink 1s steps(2, end) infinite;
+  vertical-align: -2px;
+}
+
+@keyframes blink {
+  to { visibility: hidden; }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .float-tile,
+  .caret-blink,
+  .fade-in {
+    animation: none !important;
+  }
+
+  .tilt,
+  .reveal {
+    opacity: 1;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .tilt { transform: none; }
+  .phone-frame { padding: 6px; border-radius: 28px; }
+  .phone-frame::before { top: 12px; width: 48px; height: 12px; }
+  .phone-frame img { border-radius: 22px; }
+}

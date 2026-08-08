@@ -32,6 +32,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -112,7 +113,7 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
         ClockHeader(state.preferences.settings)
         Spacer(Modifier.height(56.dp))
         when {
-            displayedItems.isEmpty() -> Text("Swipe left to add apps to Home.", color = Color.Gray, fontSize = 18.sp)
+            displayedItems.isEmpty() -> Text("Swipe left to add apps to Home.", color = Color.Gray, fontSize = launcherSp(18.sp))
             else -> LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
@@ -131,7 +132,7 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                                 selectedItemId = null
                                 actions.onRemoveHomeItem(ref)
                             },
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color.LightGray),
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
                         ) { Text("Remove") }
                     }
                     val dragVisualModifier = Modifier
@@ -143,19 +144,17 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = false)
                                 val earlyFinish = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
-                                    waitForUpOrCancellation() to true
+                                    waitForUpOrCancellation()
                                 }
                                 if (earlyFinish != null) {
-                                    if (earlyFinish.first != null) {
-                                        selectedItemId = null
-                                        when (item) {
-                                            is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
-                                            is FolderItem -> {
-                                                expandedFolderIds = if (item.id in expandedFolderIds) {
-                                                    expandedFolderIds - item.id
-                                                } else {
-                                                    expandedFolderIds + item.id
-                                                }
+                                    selectedItemId = null
+                                    when (item) {
+                                        is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
+                                        is FolderItem -> {
+                                            expandedFolderIds = if (item.id in expandedFolderIds) {
+                                                expandedFolderIds - item.id
+                                            } else {
+                                                expandedFolderIds + item.id
                                             }
                                         }
                                     }
@@ -182,8 +181,14 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                                     val draggedInfo = layout.visibleItemsInfo.firstOrNull { it.key == item.id }
                                         ?: return@drag
                                     val draggedCenter = draggedInfo.offset + draggedInfo.size / 2f + dragOffset
-                                    val targetInfo = layout.visibleItemsInfo.firstOrNull { info ->
-                                        info.key != item.id && draggedCenter in info.offset.toFloat()..(info.offset + info.size).toFloat()
+                                    val targetInfo = if (abs(dragOffset) > draggedInfo.size / 2f) {
+                                        layout.visibleItemsInfo
+                                            .filter { info -> info.key != item.id }
+                                            .minByOrNull { info ->
+                                                abs(draggedCenter - (info.offset + info.size / 2f))
+                                            }
+                                    } else {
+                                        null
                                     }
                                     if (targetInfo != null && targetInfo.index != currentDragIndex) {
                                         val mutable = displayedItems.toMutableList()
@@ -266,7 +271,7 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                                 item.label,
                                 modifier = Modifier.weight(1f),
                                 color = Color.White,
-                                fontSize = 21.sp,
+                                fontSize = launcherSp(21.sp),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -297,7 +302,7 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                         },
                     ),
                 color = Color.LightGray,
-                fontSize = 16.sp,
+                fontSize = launcherSp(16.sp),
             )
         }
     }
@@ -327,7 +332,7 @@ private fun ClockHeader(settings: LauncherSettings) {
         Text(
             now.format(DateTimeFormatter.ofPattern(if (use24Hour) "HH:mm" else "h:mm a")),
             color = Color.White,
-            fontSize = 48.sp,
+            fontSize = launcherSp(48.sp),
             fontWeight = FontWeight.Normal,
         )
         if (settings.showDate) {
@@ -335,7 +340,7 @@ private fun ClockHeader(settings: LauncherSettings) {
                 now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale)),
                 modifier = Modifier.offset(y = (-4).dp),
                 color = Color.LightGray,
-                fontSize = 16.sp,
+                fontSize = launcherSp(16.sp),
             )
         }
         if (settings.showBattery) {
@@ -390,7 +395,7 @@ private fun RefreshUsageWhileVisible(onRefresh: () -> Unit) {
 @Composable
 private fun BatteryIndicator(percentage: Int?) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(percentage?.let { "$it%" } ?: "--%", color = Color.LightGray, fontSize = 14.sp)
+        Text(percentage?.let { "$it%" } ?: "--%", color = Color.LightGray, fontSize = launcherSp(14.sp))
         Canvas(modifier = Modifier.width(30.dp).height(14.dp)) {
             val strokeWidth = 1.8.dp.toPx()
             val tipWidth = 2.5.dp.toPx()

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -28,11 +29,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.rafael.minimallauncher.R
+import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.ClockFormat
 import com.rafael.minimallauncher.data.HomeItemRef
+import com.rafael.minimallauncher.data.LauncherAccent
+import com.rafael.minimallauncher.data.LauncherFont
+import com.rafael.minimallauncher.data.LauncherTextSize
 
 private sealed interface SettingsEditor {
     data class App(val id: String, val name: String) : SettingsEditor
@@ -44,6 +51,7 @@ internal fun SettingsPage(state: LauncherUiState, actions: LauncherActions, onBa
     val context = LocalContext.current
     val preferences = state.preferences
     var editor by remember { mutableStateOf<SettingsEditor?>(null) }
+    var folderToDelete by remember { mutableStateOf<FolderItem?>(null) }
     val appsById = state.apps.associateBy { it.id }
 
     LazyColumn(
@@ -55,12 +63,12 @@ internal fun SettingsPage(state: LauncherUiState, actions: LauncherActions, onBa
                 "‹  Settings",
                 modifier = Modifier.fillMaxWidth().clickable(onClick = onBack).padding(start = 22.dp, top = 54.dp, bottom = 22.dp),
                 color = Color.White,
-                fontSize = 30.sp,
+                fontSize = launcherSp(30.sp),
             )
         }
         item { SectionTitle("Appearance") }
         item {
-            Text("Clock format", modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp), color = Color.White, fontSize = 20.sp)
+            Text("Clock format", modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp), color = Color.White, fontSize = launcherSp(20.sp))
             Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
                 ClockFormat.entries.forEach { format ->
                     TextButton(onClick = { actions.onClockFormatChange(format) }) {
@@ -70,12 +78,56 @@ internal fun SettingsPage(state: LauncherUiState, actions: LauncherActions, onBa
                                 ClockFormat.TWELVE_HOUR -> "12-hour"
                                 ClockFormat.TWENTY_FOUR_HOUR -> "24-hour"
                             },
-                            color = if (preferences.settings.clockFormat == format) Color.White else Color.Gray,
+                            color = if (preferences.settings.clockFormat == format) MaterialTheme.colorScheme.primary else Color.Gray,
                             fontWeight = if (preferences.settings.clockFormat == format) FontWeight.Bold else FontWeight.Normal,
                         )
                     }
                 }
             }
+        }
+        item {
+            SettingChoiceRow(
+                title = stringResource(R.string.appearance_font),
+                choices = LauncherFont.entries.map { font ->
+                    when (font) {
+                        LauncherFont.SYSTEM -> stringResource(R.string.font_system)
+                        LauncherFont.SERIF -> stringResource(R.string.font_serif)
+                        LauncherFont.MONOSPACE -> stringResource(R.string.font_monospace)
+                    }
+                },
+                selectedIndex = LauncherFont.entries.indexOf(preferences.settings.font),
+                onSelect = { actions.onFontChange(LauncherFont.entries[it]) },
+            )
+        }
+        item {
+            SettingChoiceRow(
+                title = stringResource(R.string.appearance_text_size),
+                choices = LauncherTextSize.entries.map { size ->
+                    when (size) {
+                        LauncherTextSize.SMALL -> stringResource(R.string.text_size_small)
+                        LauncherTextSize.MEDIUM -> stringResource(R.string.text_size_medium)
+                        LauncherTextSize.LARGE -> stringResource(R.string.text_size_large)
+                    }
+                },
+                selectedIndex = LauncherTextSize.entries.indexOf(preferences.settings.textSize),
+                onSelect = { actions.onTextSizeChange(LauncherTextSize.entries[it]) },
+            )
+        }
+        item {
+            SettingChoiceRow(
+                title = stringResource(R.string.appearance_accent),
+                choices = LauncherAccent.entries.map { accent ->
+                    when (accent) {
+                        LauncherAccent.MONOCHROME -> stringResource(R.string.accent_monochrome)
+                        LauncherAccent.BLUE -> stringResource(R.string.accent_blue)
+                        LauncherAccent.TEAL -> stringResource(R.string.accent_teal)
+                        LauncherAccent.AMBER -> stringResource(R.string.accent_amber)
+                        LauncherAccent.VIOLET -> stringResource(R.string.accent_violet)
+                    }
+                },
+                selectedIndex = LauncherAccent.entries.indexOf(preferences.settings.accent),
+                onSelect = { actions.onAccentChange(LauncherAccent.entries[it]) },
+            )
         }
         item { SettingSwitch("Show date", preferences.settings.showDate, actions.onShowDateChange) }
         item { SettingSwitch("Show battery", preferences.settings.showBattery, actions.onShowBatteryChange) }
@@ -164,10 +216,10 @@ internal fun SettingsPage(state: LauncherUiState, actions: LauncherActions, onBa
                         destructiveAction = "Delete",
                         onClick = {
                             val ref = HomeItemRef.Folder(folder.id)
-                            if (folder.id in state.favoriteFolderIds) actions.onRemoveHomeItem(ref) else actions.onAddHomeItem(ref)
+                            actions.onToggleHomeItem(ref)
                         },
                         onSecondaryClick = { editor = SettingsEditor.Folder(folder.id, folder.label) },
-                        onDestructiveClick = { actions.onDeleteFolder(folder.id) },
+                        onDestructiveClick = { folderToDelete = folder },
                     )
                 }
             }
@@ -190,6 +242,19 @@ internal fun SettingsPage(state: LauncherUiState, actions: LauncherActions, onBa
             },
         )
     }
+
+    folderToDelete?.let { folder ->
+        DestructiveConfirmationDialog(
+            title = stringResource(R.string.confirm_delete_folder_title, folder.label),
+            message = stringResource(R.string.confirm_delete_folder_message),
+            confirmLabel = stringResource(R.string.confirm_delete_folder_action),
+            onDismiss = { folderToDelete = null },
+            onConfirm = {
+                actions.onDeleteFolder(folder.id)
+                folderToDelete = null
+            },
+        )
+    }
 }
 
 @Composable
@@ -198,7 +263,7 @@ private fun SectionTitle(value: String) {
         value,
         modifier = Modifier.fillMaxWidth().padding(start = 28.dp, top = 30.dp, bottom = 10.dp),
         color = Color.LightGray,
-        fontSize = 17.sp,
+        fontSize = launcherSp(17.sp),
         fontWeight = FontWeight.SemiBold,
     )
 }
@@ -209,8 +274,32 @@ private fun SettingSwitch(title: String, checked: Boolean, onChange: (Boolean) -
         modifier = Modifier.fillMaxWidth().clickable { onChange(!checked) }.padding(horizontal = 28.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, modifier = Modifier.weight(1f), color = Color.White, fontSize = 20.sp)
+        Text(title, modifier = Modifier.weight(1f), color = Color.White, fontSize = launcherSp(20.sp))
         Switch(checked = checked, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun SettingChoiceRow(
+    title: String,
+    choices: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+) {
+    Text(title, modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp), color = Color.White, fontSize = launcherSp(20.sp))
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        choices.forEachIndexed { index, choice ->
+            TextButton(onClick = { onSelect(index) }) {
+                Text(
+                    choice,
+                    color = if (selectedIndex == index) MaterialTheme.colorScheme.primary else Color.Gray,
+                    fontWeight = if (selectedIndex == index) FontWeight.Bold else FontWeight.Normal,
+                )
+            }
+        }
     }
 }
 
@@ -230,8 +319,8 @@ private fun SettingsActionRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, color = Color.White, fontSize = 20.sp)
-            subtitle?.let { Text(it, color = Color.Gray, fontSize = 14.sp) }
+            Text(title, color = Color.White, fontSize = launcherSp(20.sp))
+            subtitle?.let { Text(it, color = Color.Gray, fontSize = launcherSp(14.sp)) }
         }
         action?.let { TextButton(onClick = onClick) { Text(it) } }
         secondaryAction?.let { TextButton(onClick = onSecondaryClick) { Text(it) } }
@@ -241,7 +330,7 @@ private fun SettingsActionRow(
 
 @Composable
 private fun EmptySetting(value: String) {
-    Text(value, modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp), color = Color.DarkGray, fontSize = 17.sp)
+    Text(value, modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp), color = Color.DarkGray, fontSize = launcherSp(17.sp))
 }
 
 @Composable

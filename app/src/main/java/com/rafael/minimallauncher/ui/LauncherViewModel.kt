@@ -1,163 +1,101 @@
 package com.rafael.minimallauncher.ui
 
-import android.app.Application
 import android.util.Log
-import androidx.lifecycle.AndroidViewModel
+import androidx.annotation.StringRes
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.rafael.minimallauncher.data.ClockFormat
+import com.rafael.minimallauncher.R
+import com.rafael.minimallauncher.data.AppUninstallLauncher
 import com.rafael.minimallauncher.data.AppItem
-import com.rafael.minimallauncher.data.FolderItem
+import com.rafael.minimallauncher.data.ClockFormat
+import com.rafael.minimallauncher.data.DailyUsage
+import com.rafael.minimallauncher.data.FolderDeletionSnapshot
 import com.rafael.minimallauncher.data.HomeItemRef
+import com.rafael.minimallauncher.data.LauncherAccent
 import com.rafael.minimallauncher.data.LauncherApp
+import com.rafael.minimallauncher.data.LauncherFont
 import com.rafael.minimallauncher.data.LauncherItem
 import com.rafael.minimallauncher.data.LauncherPreferences
 import com.rafael.minimallauncher.data.LauncherPreferencesRepository
 import com.rafael.minimallauncher.data.LauncherRepository
-import com.rafael.minimallauncher.data.DailyUsage
+import com.rafael.minimallauncher.data.LauncherSettings
+import com.rafael.minimallauncher.data.LauncherTextSize
+import com.rafael.minimallauncher.data.UninstallResult
 import com.rafael.minimallauncher.data.UsageStatsRepository
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.CancellationException
-import java.text.Collator
-import java.util.Locale
+import kotlinx.coroutines.channels.Channel
 
-data class LauncherUiState(
-    val apps: List<LauncherApp> = emptyList(),
-    val filteredApps: List<LauncherApp> = emptyList(),
-    val favoriteApps: List<LauncherApp> = emptyList(),
-    val favoriteIds: Set<String> = emptySet(),
-    val favoriteFolderIds: Set<String> = emptySet(),
-    val drawerItems: List<LauncherItem> = emptyList(),
-    val homeItems: List<LauncherItem> = emptyList(),
-    val folders: List<FolderItem> = emptyList(),
-    val preferences: LauncherPreferences = LauncherPreferences(),
-    val dailyUsage: DailyUsage = DailyUsage(),
-    val searchQuery: String = "",
-    val isLoading: Boolean = false,
-)
+@OptIn(kotlinx.coroutines.FlowPreview::class)
+class LauncherViewModel(
+    private val launcherRepository: LauncherRepository,
+    private val preferencesRepository: LauncherPreferencesRepository,
+    private val usageStatsRepository: UsageStatsRepository,
+    private val uninstallLauncher: AppUninstallLauncher,
+    private val dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    private val logger: (String, Throwable?) -> Unit = { message, error -> Log.e(TAG, message, error) },
+) : ViewModel() {
+    private val eventsChannel = Channel<LauncherUiEvent>(Channel.BUFFERED)
+    val events: Flow<LauncherUiEvent> = eventsChannel.receiveAsFlow()
 
-private fun createCachedUiState(
-    installedApps: List<LauncherApp>,
-    preferences: LauncherPreferences,
-): LauncherUiState {
-    val visibleApps = installedApps
-        .filterNot { it.id in preferences.hiddenAppIds }
-        .associate { app -> app.id to AppItem(app, preferences.customNames[app.id] ?: app.label) }
-    val folders = preferences.folders.associate { folder ->
-        folder.id to FolderItem(
-            folder = folder,
-            apps = preferences.appFolders
-                .filterValues { it == folder.id }
-                .keys
-                .mapNotNull(visibleApps::get)
-                .sortedBy(AppItem::label),
-        )
-    }
-    val homeItems = preferences.homeItems.mapNotNull { item ->
-        when (item) {
-            is HomeItemRef.App -> visibleApps[item.value]
-            is HomeItemRef.Folder -> folders[item.value]
-        }
-    }
-    return LauncherUiState(
-        apps = installedApps,
-        favoriteApps = preferences.homeItems.mapNotNull { item ->
-            (item as? HomeItemRef.App)?.value?.let { visibleApps[it]?.app }
-        },
-        favoriteIds = preferences.homeItems.filterIsInstance<HomeItemRef.App>().mapTo(mutableSetOf()) { it.value },
-        favoriteFolderIds = preferences.homeItems.filterIsInstance<HomeItemRef.Folder>().mapTo(mutableSetOf()) { it.value },
-        homeItems = homeItems,
-        folders = folders.values.toList(),
-        preferences = preferences,
-    )
-}
-
-class LauncherViewModel(application: Application) : AndroidViewModel(application) {
-    private val launcherRepository = LauncherRepository(application)
-    private val preferencesRepository = LauncherPreferencesRepository(application)
-    private val usageStatsRepository = UsageStatsRepository(application)
     private val apps = MutableStateFlow(launcherRepository.loadCachedApps())
     private val searchQuery = MutableStateFlow("")
     private val dailyUsage = MutableStateFlow(DailyUsage())
-    private var appsRefreshJob: Job? = null
-    private var usageRefreshJob: Job? = null
-
-    val uiState: StateFlow<LauncherUiState> = combine(
-        apps,
-        preferencesRepository.preferences,
-        searchQuery,
-        dailyUsage,
-    ) { installedApps, preferences, query, usage ->
-        val collator = Collator.getInstance(Locale.getDefault())
-        val itemComparator = Comparator<LauncherItem> { first, second -> collator.compare(first.label, second.label) }
-        val favoriteIds = preferences.homeItems.filterIsInstance<HomeItemRef.App>().mapTo(mutableSetOf()) { it.value }
-        val favoriteFolderIds = preferences.homeItems.filterIsInstance<HomeItemRef.Folder>().mapTo(mutableSetOf()) { it.value }
-        val appsById = installedApps.associateBy(LauncherApp::id)
-        val visibleAppItems = installedApps
-            .filterNot { it.id in preferences.hiddenAppIds }
-            .associate { app -> app.id to AppItem(app, preferences.customNames[app.id] ?: app.label) }
-        val folderItems = preferences.folders.associate { folder ->
-            folder.id to FolderItem(
-                folder = folder,
-                apps = preferences.appFolders
-                    .filterValues { it == folder.id }
-                    .keys
-                    .mapNotNull(visibleAppItems::get)
-                    .sortedWith(compareBy(collator) { it.label }),
-            )
+    private val initialCatalog = LauncherUiStateMapper.mapCatalog(
+        installedApps = apps.value,
+        preferences = preferencesRepository.cachedPreferences,
+    )
+    private val preferences: Flow<LauncherPreferences> = preferencesRepository.preferences
+        .catch { exception ->
+            if (exception is CancellationException) throw exception
+            logger("Unable to read launcher preferences", exception)
+            showError(R.string.error_preferences_read)
+            emit(preferencesRepository.cachedPreferences)
         }
-        val assignedAppIds = preferences.appFolders.filterValues(folderItems::containsKey).keys
-        val topLevelItems = (visibleAppItems.values.filterNot { it.id in assignedAppIds } + folderItems.values)
-            .sortedWith(itemComparator)
-        val drawerItems = if (query.isBlank()) {
-            topLevelItems
-        } else {
-            (visibleAppItems.values.filter { it.label.contains(query, ignoreCase = true) } +
-                folderItems.values.filter { it.label.contains(query, ignoreCase = true) })
-                .sortedWith(itemComparator)
-        }
-        val homeItems = preferences.homeItems.mapNotNull { item ->
-            when (item) {
-                is HomeItemRef.App -> visibleAppItems[item.value]
-                is HomeItemRef.Folder -> folderItems[item.value]
-            }
-        }
-        val favoriteApps = preferences.homeItems.mapNotNull { item ->
-            (item as? HomeItemRef.App)?.value?.let(appsById::get)
-        }.filterNot { it.id in preferences.hiddenAppIds }
-        LauncherUiState(
-            apps = installedApps,
-            filteredApps = installedApps.filter { app ->
-                app.id !in preferences.hiddenAppIds &&
-                    (query.isBlank() || (preferences.customNames[app.id] ?: app.label).contains(query, ignoreCase = true))
-            }.sortedBy { preferences.customNames[it.id] ?: it.label },
-            favoriteApps = favoriteApps,
-            favoriteIds = favoriteIds,
-            favoriteFolderIds = favoriteFolderIds,
-            drawerItems = drawerItems,
-            homeItems = homeItems,
-            folders = folderItems.values.sortedWith(compareBy(collator) { it.label }),
-            preferences = preferences,
-            dailyUsage = usage,
-            searchQuery = query,
-            isLoading = false,
-        )
-    }.flowOn(Dispatchers.Default).stateIn(
+    private val catalog: StateFlow<LauncherCatalog> = combine(apps, preferences) { installedApps, values ->
+        LauncherUiStateMapper.mapCatalog(installedApps, values)
+    }.flowOn(dispatcher).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = createCachedUiState(
-            installedApps = apps.value,
-            preferences = preferencesRepository.cachedPreferences,
-        ),
+        initialValue = initialCatalog,
     )
+    private val debouncedSearchQuery = searchQuery
+        .map(String::trim)
+        .debounce(SEARCH_DEBOUNCE_MS)
+        .distinctUntilChanged { previous, current -> previous.equals(current, ignoreCase = true) }
+    val uiState: StateFlow<LauncherUiState> = combine(catalog, debouncedSearchQuery, dailyUsage) {
+        currentCatalog,
+        query,
+        usage,
+        -> LauncherUiStateMapper.mapState(currentCatalog, query, usage)
+    }.flowOn(dispatcher).stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = LauncherUiStateMapper.mapState(initialCatalog, "", dailyUsage.value),
+    )
+
+    private var appsRefreshJob: Job? = null
+    private var usageRefreshJob: Job? = null
+    private var refreshRequested = false
+    private var nextUndoToken = 0L
+    private var pendingUndo: PendingUndo? = null
+    private var undoExpiryJob: Job? = null
 
     init {
         refreshApps()
@@ -165,26 +103,50 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refreshApps() {
-        if (appsRefreshJob?.isActive == true) return
+        if (appsRefreshJob?.isActive == true) {
+            refreshRequested = true
+            return
+        }
         appsRefreshJob = viewModelScope.launch {
-            repeat(APP_LOAD_ATTEMPTS) { attempt ->
-                try {
-                    val installedApps = launcherRepository.loadApps()
-                    if (installedApps.isNotEmpty()) {
-                        apps.value = installedApps
-                        preferencesRepository.migrateLegacyFavorites(installedApps.map(LauncherApp::id))
-                        return@launch
+            try {
+                var installedApps: List<LauncherApp>? = null
+                for (attempt in 0 until APP_LOAD_ATTEMPTS) {
+                    try {
+                        installedApps = launcherRepository.loadApps()
+                        break
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        logger("Unable to refresh installed apps (attempt ${attempt + 1})", exception)
+                        if (attempt < APP_LOAD_ATTEMPTS - 1) delay(APP_LOAD_RETRY_DELAY_MS)
                     }
-                } catch (exception: CancellationException) {
-                    throw exception
-                } catch (exception: Exception) {
-                    // A transient PackageManager failure must not erase the cached HOME.
-                    Log.e(TAG, "Unable to refresh installed apps (attempt ${attempt + 1})", exception)
                 }
-                if (attempt < APP_LOAD_ATTEMPTS - 1) delay(APP_LOAD_RETRY_DELAY_MS)
+
+                val refreshedApps = installedApps
+                if (refreshedApps == null) {
+                    showError(R.string.error_apps_refresh)
+                } else {
+                    apps.value = refreshedApps
+                    try {
+                        preferencesRepository.reconcileInstalledApps(refreshedApps.map(LauncherApp::id))
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (exception: Exception) {
+                        logger("Unable to reconcile launcher preferences", exception)
+                        showError(R.string.error_preferences_cleanup)
+                    }
+                }
+            } finally {
+                appsRefreshJob = null
+                if (refreshRequested) {
+                    refreshRequested = false
+                    refreshApps()
+                }
             }
         }
     }
+
+    fun onPackageChanged() = refreshApps()
 
     fun setSearchQuery(value: String) {
         searchQuery.value = value
@@ -198,14 +160,20 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
-                Log.e(TAG, "Unable to refresh usage stats", exception)
-                dailyUsage.value = DailyUsage()
+                logger("Unable to refresh usage stats", exception)
+                showError(R.string.error_usage_refresh)
+            } finally {
+                usageRefreshJob = null
             }
         }
     }
 
     fun toggleFavorite(app: LauncherApp) {
-        viewModelScope.launch { preferencesRepository.toggleHomeApp(app.id) }
+        launchPreferenceUpdate { preferencesRepository.toggleHomeApp(app.id) }
+    }
+
+    fun toggleHomeItem(item: HomeItemRef) = launchPreferenceUpdate {
+        preferencesRepository.toggleHomeItem(item)
     }
 
     fun addHomeItem(item: HomeItemRef) = launchPreferenceUpdate { preferencesRepository.addHomeItem(item) }
@@ -226,6 +194,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         preferencesRepository.renameApp(appId, name)
     }
 
+    fun hideApp(appId: String) {
+        viewModelScope.launch {
+            try {
+                preferencesRepository.setAppHidden(appId, true)
+                val token = registerUndo(PendingUndo.HideApp(nextToken(), appId))
+                showSnackbar(R.string.app_hidden, token)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                logger("Unable to hide app", exception)
+                showError(R.string.error_preferences_write)
+            }
+        }
+    }
+
     fun setAppHidden(appId: String, hidden: Boolean) = launchPreferenceUpdate {
         preferencesRepository.setAppHidden(appId, hidden)
     }
@@ -242,12 +225,70 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         preferencesRepository.renameFolder(folderId, name)
     }
 
-    fun deleteFolder(folderId: String) = launchPreferenceUpdate {
-        preferencesRepository.deleteFolder(folderId)
+    fun deleteFolder(folderId: String) {
+        viewModelScope.launch {
+            try {
+                val snapshot = preferencesRepository.deleteFolder(folderId) ?: return@launch
+                val token = registerUndo(PendingUndo.DeleteFolder(nextToken(), snapshot))
+                showSnackbar(R.string.folder_deleted, token)
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                logger("Unable to delete folder", exception)
+                showError(R.string.error_preferences_write)
+            }
+        }
+    }
+
+    fun undo(token: Long) {
+        val operation = pendingUndo?.takeIf { it.token == token } ?: return
+        pendingUndo = null
+        undoExpiryJob?.cancel()
+        viewModelScope.launch {
+            try {
+                when (operation) {
+                    is PendingUndo.HideApp -> preferencesRepository.setAppHidden(operation.appId, false)
+                    is PendingUndo.DeleteFolder -> preferencesRepository.restoreFolder(
+                        operation.snapshot,
+                        apps.value.mapTo(mutableSetOf(), LauncherApp::id),
+                    )
+                }
+                showSnackbar(
+                    when (operation) {
+                        is PendingUndo.HideApp -> R.string.app_restored
+                        is PendingUndo.DeleteFolder -> R.string.folder_restored
+                    },
+                )
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                logger("Unable to undo launcher operation", exception)
+                showError(R.string.error_preferences_write)
+            }
+        }
     }
 
     fun moveAppToFolder(appId: String, folderId: String?) = launchPreferenceUpdate {
         preferencesRepository.moveAppToFolder(appId, folderId)
+    }
+
+    fun requestUninstall(app: LauncherApp) {
+        viewModelScope.launch {
+            try {
+                when (uninstallLauncher.requestUninstall(app)) {
+                    UninstallResult.Started -> showSnackbar(R.string.uninstall_opened)
+                    UninstallResult.Unavailable -> {
+                        logger("No uninstall activity available for ${app.id}", null)
+                        showError(R.string.error_uninstall_unavailable)
+                    }
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                logger("Unable to open uninstall flow", exception)
+                showError(R.string.error_uninstall_unavailable)
+            }
+        }
     }
 
     fun updateClockFormat(value: ClockFormat) = updateSettings { it.copy(clockFormat = value) }
@@ -260,7 +301,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun setFocusSearchOnListOpen(value: Boolean) = updateSettings { it.copy(focusSearchOnListOpen = value) }
 
-    private fun updateSettings(transform: (com.rafael.minimallauncher.data.LauncherSettings) -> com.rafael.minimallauncher.data.LauncherSettings) =
+    fun setFont(value: LauncherFont) = updateSettings { it.copy(font = value) }
+
+    fun setTextSize(value: LauncherTextSize) = updateSettings { it.copy(textSize = value) }
+
+    fun setAccent(value: LauncherAccent) = updateSettings { it.copy(accent = value) }
+
+    private fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) =
         launchPreferenceUpdate { preferencesRepository.updateSettings(transform) }
 
     private fun launchPreferenceUpdate(block: suspend () -> Unit) {
@@ -270,20 +317,50 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
-                // Preference I/O is non-critical; keep the launcher available as HOME.
-                Log.e(TAG, "Unable to update launcher preferences", exception)
+                logger("Unable to update launcher preferences", exception)
+                showError(R.string.error_preferences_write)
             }
         }
     }
 
+    private fun nextToken(): Long = ++nextUndoToken
+
+    private fun registerUndo(operation: PendingUndo): LauncherSnackbarAction {
+        pendingUndo = operation
+        undoExpiryJob?.cancel()
+        undoExpiryJob = viewModelScope.launch {
+            delay(UNDO_TIMEOUT_MS)
+            if (pendingUndo?.token == operation.token) pendingUndo = null
+        }
+        return LauncherSnackbarAction(operation.token)
+    }
+
+    private fun showSnackbar(@StringRes messageRes: Int, action: LauncherSnackbarAction? = null) {
+        eventsChannel.trySend(LauncherUiEvent.Snackbar(messageRes = messageRes, action = action))
+    }
+
+    private fun showError(@StringRes messageRes: Int) {
+        eventsChannel.trySend(LauncherUiEvent.Snackbar(messageRes = messageRes, isError = true))
+    }
+
     private fun LauncherItem.homeRef(): HomeItemRef = when (this) {
         is AppItem -> HomeItemRef.App(id)
-        is FolderItem -> HomeItemRef.Folder(id)
+        is com.rafael.minimallauncher.data.FolderItem -> HomeItemRef.Folder(id)
+    }
+
+    private sealed interface PendingUndo {
+        val token: Long
+
+        data class HideApp(override val token: Long, val appId: String) : PendingUndo
+
+        data class DeleteFolder(override val token: Long, val snapshot: FolderDeletionSnapshot) : PendingUndo
     }
 
     private companion object {
         const val TAG = "LauncherViewModel"
         const val APP_LOAD_ATTEMPTS = 3
         const val APP_LOAD_RETRY_DELAY_MS = 250L
+        const val SEARCH_DEBOUNCE_MS = 200L
+        const val UNDO_TIMEOUT_MS = 10_000L
     }
 }

@@ -6,16 +6,16 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
-import androidx.datastore.preferences.preferencesDataStoreFile
-import androidx.datastore.preferences.core.PreferenceDataStoreFactory
-import kotlinx.coroutines.CancellationException
+import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 
 private const val DATASTORE_NAME = "launcher_preferences"
+private val Context.launcherPreferencesDataStore by preferencesDataStore(name = DATASTORE_NAME)
 private val LEGACY_FAVORITES = stringSetPreferencesKey("favorite_components")
 private val HOME_ITEMS = stringPreferencesKey("home_items_v2")
 private val CUSTOM_NAMES = stringPreferencesKey("custom_names")
@@ -28,47 +28,72 @@ private val SHOW_DATE = booleanPreferencesKey("show_date")
 private val SHOW_BATTERY = booleanPreferencesKey("show_battery")
 private val SHOW_DAILY_USAGE = booleanPreferencesKey("show_daily_usage")
 private val FOCUS_SEARCH_ON_LIST_OPEN = booleanPreferencesKey("focus_search_on_list_open")
+private val FONT = stringPreferencesKey("font")
+private val TEXT_SIZE = stringPreferencesKey("text_size")
+private val ACCENT = stringPreferencesKey("accent")
 
-class LauncherPreferencesRepository(context: Context) {
-    private val cache = context.getSharedPreferences(PREFERENCES_CACHE_NAME, Context.MODE_PRIVATE)
-    private val dataStore = PreferenceDataStoreFactory.create(
-        produceFile = { context.preferencesDataStoreFile(DATASTORE_NAME) },
-    )
-
+interface LauncherPreferencesRepository {
     val cachedPreferences: LauncherPreferences
+    val preferences: Flow<LauncherPreferences>
+
+    suspend fun reconcileInstalledApps(orderedAppIds: List<String>)
+    suspend fun toggleHomeApp(appId: String)
+    suspend fun toggleHomeItem(item: HomeItemRef)
+    suspend fun addHomeItem(item: HomeItemRef)
+    suspend fun removeHomeItem(item: HomeItemRef)
+    suspend fun moveHomeItem(fromIndex: Int, toIndex: Int)
+    suspend fun renameApp(appId: String, name: String?)
+    suspend fun setAppHidden(appId: String, hidden: Boolean)
+    suspend fun setAppBlocked(appId: String, blocked: Boolean)
+    suspend fun createFolder(name: String, appId: String? = null)
+    suspend fun renameFolder(folderId: String, name: String)
+    suspend fun deleteFolder(folderId: String): FolderDeletionSnapshot?
+    suspend fun restoreFolder(snapshot: FolderDeletionSnapshot, installedAppIds: Set<String>)
+    suspend fun moveAppToFolder(appId: String, folderId: String?)
+    suspend fun updateSettings(transform: (LauncherSettings) -> LauncherSettings)
+}
+
+class DataStoreLauncherPreferencesRepository(context: Context) : LauncherPreferencesRepository {
+    private val applicationContext = context.applicationContext
+    private val cache = applicationContext.getSharedPreferences(PREFERENCES_CACHE_NAME, Context.MODE_PRIVATE)
+    private val dataStore = applicationContext.launcherPreferencesDataStore
+    private val mutationMutex = Mutex()
+
+    override val cachedPreferences: LauncherPreferences
         get() = decodeCachedPreferences()
 
-    val preferences: Flow<LauncherPreferences> = dataStore.data
+    override val preferences: Flow<LauncherPreferences> = dataStore.data
         .map(::decodePreferences)
-        .catch { exception ->
-            if (exception is CancellationException) throw exception
-            // HOME must remain usable even if the preferences file cannot be read.
-            emit(cachedPreferences)
-        }
         .onEach(::cachePreferences)
 
-    suspend fun migrateLegacyFavorites(orderedAppIds: List<String>) {
+    override suspend fun reconcileInstalledApps(orderedAppIds: List<String>) = mutationMutex.withLock {
         dataStore.edit { values ->
-            if (HOME_ITEMS !in values) {
-                val legacy = values[LEGACY_FAVORITES].orEmpty()
-                val ordered = orderedAppIds.filter(legacy::contains).map(HomeItemRef::App)
-                values[HOME_ITEMS] = LauncherPreferencesCodec.encodeHomeItems(ordered)
-            }
+            val reconciled = LauncherPreferencesReconciler.reconcile(decodePreferences(values), orderedAppIds)
+            values[CUSTOM_NAMES] = LauncherPreferencesCodec.encodeMap(reconciled.customNames)
+            values[HIDDEN_APPS] = reconciled.hiddenAppIds
+            values[BLOCKED_APPS] = reconciled.blockedAppIds
+            values[APP_FOLDERS] = LauncherPreferencesCodec.encodeMap(reconciled.appFolders)
+            values[LEGACY_FAVORITES] = reconciled.legacyFavoriteIds
+            values[HOME_ITEMS] = LauncherPreferencesCodec.encodeHomeItems(reconciled.homeItems)
         }
+        Unit
     }
 
-    suspend fun toggleHomeApp(appId: String) = updateHomeItems { current ->
-        val ref = HomeItemRef.App(appId)
-        if (ref in current) current - ref else current + ref
+    override suspend fun toggleHomeApp(appId: String) = updateHomeItems { current ->
+        current.toggle(HomeItemRef.App(appId))
     }
 
-    suspend fun addHomeItem(item: HomeItemRef) = updateHomeItems { current ->
+    override suspend fun toggleHomeItem(item: HomeItemRef) = updateHomeItems { current ->
+        current.toggle(item)
+    }
+
+    override suspend fun addHomeItem(item: HomeItemRef) = updateHomeItems { current ->
         if (item in current) current else current + item
     }
 
-    suspend fun removeHomeItem(item: HomeItemRef) = updateHomeItems { it - item }
+    override suspend fun removeHomeItem(item: HomeItemRef) = updateHomeItems { it - item }
 
-    suspend fun moveHomeItem(fromIndex: Int, toIndex: Int) = updateHomeItems { current ->
+    override suspend fun moveHomeItem(fromIndex: Int, toIndex: Int) = updateHomeItems { current ->
         if (fromIndex !in current.indices || toIndex !in current.indices || fromIndex == toIndex) {
             current
         } else {
@@ -76,76 +101,106 @@ class LauncherPreferencesRepository(context: Context) {
         }
     }
 
-    suspend fun renameApp(appId: String, name: String?) = editMap(CUSTOM_NAMES) { current ->
+    override suspend fun renameApp(appId: String, name: String?) = editMap(CUSTOM_NAMES) { current ->
         if (name.isNullOrBlank()) current - appId else current + (appId to name.trim())
     }
 
-    suspend fun setAppHidden(appId: String, hidden: Boolean) = editSet(HIDDEN_APPS, appId, hidden)
+    override suspend fun setAppHidden(appId: String, hidden: Boolean) = editSet(HIDDEN_APPS, appId, hidden)
 
-    suspend fun setAppBlocked(appId: String, blocked: Boolean) = editSet(BLOCKED_APPS, appId, blocked)
+    override suspend fun setAppBlocked(appId: String, blocked: Boolean) = editSet(BLOCKED_APPS, appId, blocked)
 
-    suspend fun createFolder(name: String, appId: String? = null) {
-        dataStore.edit { values ->
-            val folder = LauncherFolder(UUID.randomUUID().toString(), name.trim())
-            val folders = LauncherPreferencesCodec.decodeFolders(values[FOLDERS].orEmpty()) + folder
-            values[FOLDERS] = LauncherPreferencesCodec.encodeFolders(folders)
-            if (appId != null) {
-                val memberships = LauncherPreferencesCodec.decodeMap(values[APP_FOLDERS].orEmpty())
-                values[APP_FOLDERS] = LauncherPreferencesCodec.encodeMap(memberships + (appId to folder.id))
+    override suspend fun createFolder(name: String, appId: String?) {
+        mutationMutex.withLock {
+            dataStore.edit { values ->
+                val folder = LauncherFolder(UUID.randomUUID().toString(), name.trim())
+                val folders = LauncherPreferencesCodec.decodeFolders(values[FOLDERS].orEmpty()) + folder
+                values[FOLDERS] = LauncherPreferencesCodec.encodeFolders(folders)
+                if (appId != null) {
+                    val memberships = LauncherPreferencesCodec.decodeMap(values[APP_FOLDERS].orEmpty())
+                    values[APP_FOLDERS] = LauncherPreferencesCodec.encodeMap(memberships + (appId to folder.id))
+                }
             }
         }
     }
 
-    suspend fun renameFolder(folderId: String, name: String) {
-        dataStore.edit { values ->
-            val folders = LauncherPreferencesCodec.decodeFolders(values[FOLDERS].orEmpty())
-                .map { if (it.id == folderId) it.copy(name = name.trim()) else it }
-            values[FOLDERS] = LauncherPreferencesCodec.encodeFolders(folders)
+    override suspend fun renameFolder(folderId: String, name: String) {
+        mutationMutex.withLock {
+            dataStore.edit { values ->
+                val folders = LauncherPreferencesCodec.decodeFolders(values[FOLDERS].orEmpty())
+                    .map { if (it.id == folderId) it.copy(name = name.trim()) else it }
+                values[FOLDERS] = LauncherPreferencesCodec.encodeFolders(folders)
+            }
         }
     }
 
-    suspend fun deleteFolder(folderId: String) {
+    override suspend fun deleteFolder(folderId: String): FolderDeletionSnapshot? = mutationMutex.withLock {
+        var snapshot: FolderDeletionSnapshot? = null
         dataStore.edit { values ->
-            val folders = LauncherPreferencesCodec.decodeFolders(values[FOLDERS].orEmpty())
-                .filterNot { it.id == folderId }
-            val memberships = LauncherPreferencesCodec.decodeMap(values[APP_FOLDERS].orEmpty())
-                .filterValues { it != folderId }
-            val homeItems = LauncherPreferencesCodec.decodeHomeItems(values[HOME_ITEMS].orEmpty())
-                .filterNot { it == HomeItemRef.Folder(folderId) }
-            values[FOLDERS] = LauncherPreferencesCodec.encodeFolders(folders)
-            values[APP_FOLDERS] = LauncherPreferencesCodec.encodeMap(memberships)
-            values[HOME_ITEMS] = LauncherPreferencesCodec.encodeHomeItems(homeItems)
+            val reduced = LauncherFolderPreferencesReducer.delete(decodePreferences(values), folderId)
+            if (reduced != null) {
+                val (updatedPreferences, deletedSnapshot) = reduced
+                snapshot = deletedSnapshot
+                values[FOLDERS] = LauncherPreferencesCodec.encodeFolders(updatedPreferences.folders)
+                values[APP_FOLDERS] = LauncherPreferencesCodec.encodeMap(updatedPreferences.appFolders)
+                values[HOME_ITEMS] = LauncherPreferencesCodec.encodeHomeItems(updatedPreferences.homeItems)
+            }
         }
+        snapshot
     }
 
-    suspend fun moveAppToFolder(appId: String, folderId: String?) = editMap(APP_FOLDERS) { current ->
+    override suspend fun restoreFolder(
+        snapshot: FolderDeletionSnapshot,
+        installedAppIds: Set<String>,
+    ) = mutationMutex.withLock {
+        dataStore.edit { values ->
+            val current = decodePreferences(values)
+            val restored = LauncherFolderPreferencesReducer.restore(current, snapshot, installedAppIds)
+            values[FOLDERS] = LauncherPreferencesCodec.encodeFolders(restored.folders)
+            values[APP_FOLDERS] = LauncherPreferencesCodec.encodeMap(restored.appFolders)
+            values[HOME_ITEMS] = LauncherPreferencesCodec.encodeHomeItems(restored.homeItems)
+        }
+        Unit
+    }
+
+    override suspend fun moveAppToFolder(appId: String, folderId: String?) = editMap(APP_FOLDERS) { current ->
         if (folderId == null) current - appId else current + (appId to folderId)
     }
 
-    suspend fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) {
-        dataStore.edit { values -> writeSettings(values, transform(decodeSettings(values))) }
+    override suspend fun updateSettings(transform: (LauncherSettings) -> LauncherSettings) {
+        mutationMutex.withLock {
+            dataStore.edit { values -> writeSettings(values, transform(decodeSettings(values))) }
+        }
     }
 
     private suspend fun updateHomeItems(transform: (List<HomeItemRef>) -> List<HomeItemRef>) {
-        dataStore.edit { values ->
-            val current = LauncherPreferencesCodec.decodeHomeItems(values[HOME_ITEMS].orEmpty())
-            values[HOME_ITEMS] = LauncherPreferencesCodec.encodeHomeItems(transform(current))
+        mutationMutex.withLock {
+            dataStore.edit { values ->
+                val current = LauncherPreferencesCodec.decodeHomeItems(values[HOME_ITEMS].orEmpty())
+                values[HOME_ITEMS] = LauncherPreferencesCodec.encodeHomeItems(transform(current))
+            }
         }
     }
+
+    private fun List<HomeItemRef>.toggle(item: HomeItemRef): List<HomeItemRef> =
+        if (item in this) this - item else this + item
 
     private suspend fun editMap(
         key: Preferences.Key<String>,
         transform: (Map<String, String>) -> Map<String, String>,
     ) {
-        dataStore.edit { values ->
-            values[key] = LauncherPreferencesCodec.encodeMap(transform(LauncherPreferencesCodec.decodeMap(values[key].orEmpty())))
+        mutationMutex.withLock {
+            dataStore.edit { values ->
+                values[key] = LauncherPreferencesCodec.encodeMap(transform(LauncherPreferencesCodec.decodeMap(values[key].orEmpty())))
+            }
         }
     }
 
     private suspend fun editSet(key: Preferences.Key<Set<String>>, value: String, enabled: Boolean) {
-        dataStore.edit { values ->
-            val current = values[key].orEmpty()
-            values[key] = if (enabled) current + value else current - value
+        mutationMutex.withLock {
+            dataStore.edit { values ->
+                val current = values[key].orEmpty()
+                values[key] = if (enabled) current + value else current - value
+            }
         }
     }
 
@@ -168,6 +223,12 @@ class LauncherPreferencesRepository(context: Context) {
         showBattery = values[SHOW_BATTERY] ?: true,
         showDailyUsage = values[SHOW_DAILY_USAGE] ?: true,
         focusSearchOnListOpen = values[FOCUS_SEARCH_ON_LIST_OPEN] ?: true,
+        font = runCatching { LauncherFont.valueOf(values[FONT].orEmpty()) }
+            .getOrDefault(LauncherFont.SYSTEM),
+        textSize = runCatching { LauncherTextSize.valueOf(values[TEXT_SIZE].orEmpty()) }
+            .getOrDefault(LauncherTextSize.MEDIUM),
+        accent = runCatching { LauncherAccent.valueOf(values[ACCENT].orEmpty()) }
+            .getOrDefault(LauncherAccent.MONOCHROME),
     )
 
     private fun writeSettings(values: androidx.datastore.preferences.core.MutablePreferences, settings: LauncherSettings) {
@@ -176,6 +237,9 @@ class LauncherPreferencesRepository(context: Context) {
         values[SHOW_BATTERY] = settings.showBattery
         values[SHOW_DAILY_USAGE] = settings.showDailyUsage
         values[FOCUS_SEARCH_ON_LIST_OPEN] = settings.focusSearchOnListOpen
+        values[FONT] = settings.font.name
+        values[TEXT_SIZE] = settings.textSize.name
+        values[ACCENT] = settings.accent.name
     }
 
     private fun cachePreferences(preferences: LauncherPreferences) {
@@ -191,6 +255,9 @@ class LauncherPreferencesRepository(context: Context) {
             .putBoolean(CACHED_SHOW_BATTERY, preferences.settings.showBattery)
             .putBoolean(CACHED_SHOW_DAILY_USAGE, preferences.settings.showDailyUsage)
             .putBoolean(CACHED_FOCUS_SEARCH, preferences.settings.focusSearchOnListOpen)
+            .putString(CACHED_FONT, preferences.settings.font.name)
+            .putString(CACHED_TEXT_SIZE, preferences.settings.textSize.name)
+            .putString(CACHED_ACCENT, preferences.settings.accent.name)
             .apply()
     }
 
@@ -211,6 +278,15 @@ class LauncherPreferencesRepository(context: Context) {
                 showBattery = cache.getBoolean(CACHED_SHOW_BATTERY, true),
                 showDailyUsage = cache.getBoolean(CACHED_SHOW_DAILY_USAGE, true),
                 focusSearchOnListOpen = cache.getBoolean(CACHED_FOCUS_SEARCH, true),
+                font = runCatching {
+                    LauncherFont.valueOf(cache.getString(CACHED_FONT, null).orEmpty())
+                }.getOrDefault(LauncherFont.SYSTEM),
+                textSize = runCatching {
+                    LauncherTextSize.valueOf(cache.getString(CACHED_TEXT_SIZE, null).orEmpty())
+                }.getOrDefault(LauncherTextSize.MEDIUM),
+                accent = runCatching {
+                    LauncherAccent.valueOf(cache.getString(CACHED_ACCENT, null).orEmpty())
+                }.getOrDefault(LauncherAccent.MONOCHROME),
             ),
         )
     }
@@ -228,5 +304,8 @@ class LauncherPreferencesRepository(context: Context) {
         const val CACHED_SHOW_BATTERY = "show_battery"
         const val CACHED_SHOW_DAILY_USAGE = "show_daily_usage"
         const val CACHED_FOCUS_SEARCH = "focus_search"
+        const val CACHED_FONT = "font"
+        const val CACHED_TEXT_SIZE = "text_size"
+        const val CACHED_ACCENT = "accent"
     }
 }

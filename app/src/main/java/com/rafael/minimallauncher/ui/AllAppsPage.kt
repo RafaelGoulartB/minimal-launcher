@@ -32,6 +32,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -64,6 +65,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -76,6 +78,8 @@ import com.rafael.minimallauncher.data.AppItem
 import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.HomeItemRef
 import com.rafael.minimallauncher.data.LauncherItem
+import com.rafael.minimallauncher.data.LauncherApp
+import com.rafael.minimallauncher.R
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.PI
@@ -86,6 +90,12 @@ private sealed interface EditorDialog {
     data class RenameApp(val item: AppItem) : EditorDialog
     data class RenameFolder(val item: FolderItem) : EditorDialog
     data class NewFolder(val app: AppItem) : EditorDialog
+}
+
+private sealed interface DestructiveAction {
+    data class HideApp(val item: AppItem) : DestructiveAction
+    data class UninstallApp(val app: LauncherApp, val label: String) : DestructiveAction
+    data class DeleteFolder(val item: FolderItem) : DestructiveAction
 }
 
 private data class DrawerRow(
@@ -267,9 +277,9 @@ private fun AlphabetRail(
                             selectSlot(slot, fromScrub = false)
                         }
                         .padding(vertical = 1.dp),
-                    color = if (isActive) Color.White else Color(0xFF6E6E6E),
-                    fontSize = if (isActive) 14.sp else 13.sp,
-                    lineHeight = 15.sp,
+                    color = if (isActive) MaterialTheme.colorScheme.primary else Color(0xFF6E6E6E),
+                    fontSize = launcherSp(if (isActive) 14.sp else 13.sp),
+                    lineHeight = launcherSp(15.sp),
                     fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
                 )
             }
@@ -306,7 +316,7 @@ private fun AlphabetRail(
                 Text(
                     text = tipText,
                     color = Color.White,
-                    fontSize = 28.sp,
+                    fontSize = launcherSp(28.sp),
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -365,14 +375,14 @@ internal fun DrawerFolderRow(
             item.label,
             modifier = Modifier.weight(1f),
             color = Color.White,
-            fontSize = 21.sp,
+            fontSize = launcherSp(21.sp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
             if (appCount == 1) "1 app" else "$appCount apps",
             color = Color(0xFF8F8F8F),
-            fontSize = 14.sp,
+            fontSize = launcherSp(14.sp),
             maxLines = 1,
         )
         Spacer(Modifier.width(4.dp))
@@ -419,7 +429,7 @@ internal fun DrawerAppRow(
         Text(
             item.label,
             color = Color.White,
-            fontSize = 21.sp,
+            fontSize = launcherSp(21.sp),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -466,6 +476,7 @@ internal fun AllAppsPage(
     var expandedFolderIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var folderPickerApp by remember { mutableStateOf<AppItem?>(null) }
     var editorDialog by remember { mutableStateOf<EditorDialog?>(null) }
+    var destructiveAction by remember { mutableStateOf<DestructiveAction?>(null) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val drawerRows = remember(state.drawerItems, expandedFolderIds, state.searchQuery) {
@@ -536,8 +547,12 @@ internal fun AllAppsPage(
                     .clip(RoundedCornerShape(30.dp))
                     .background(Color(0xFF1B1B1B)),
                 singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 20.sp),
-                cursorBrush = SolidColor(Color.White),
+                textStyle = androidx.compose.ui.text.TextStyle(
+                    color = Color.White,
+                    fontSize = launcherSp(20.sp),
+                    fontFamily = LocalLauncherAppearance.current.fontFamily,
+                ),
+                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                 decorationBox = { innerTextField ->
                     Row(
                         modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
@@ -547,7 +562,7 @@ internal fun AllAppsPage(
                         Spacer(Modifier.width(15.dp))
                         Box(modifier = Modifier.weight(1f)) {
                             if (searchFieldValue.text.isEmpty()) {
-                                Text("Search apps", color = Color(0xFF9A9A9A), fontSize = 20.sp)
+                                Text("Search apps", color = Color(0xFF9A9A9A), fontSize = launcherSp(20.sp))
                             }
                             innerTextField()
                         }
@@ -633,8 +648,7 @@ internal fun AllAppsPage(
             isBlocked = item.id in state.preferences.blockedAppIds,
             onDismiss = { selectedApp = null },
             onHomeClick = {
-                if (item.id in state.favoriteIds) actions.onRemoveHomeItem(HomeItemRef.App(item.id))
-                else actions.onAddHomeItem(HomeItemRef.App(item.id))
+                actions.onToggleHomeItem(HomeItemRef.App(item.id))
                 selectedApp = null
             },
             onRename = {
@@ -642,8 +656,8 @@ internal fun AllAppsPage(
                 editorDialog = EditorDialog.RenameApp(item)
             },
             onHide = {
-                actions.onSetAppHidden(item.id, true)
                 selectedApp = null
+                destructiveAction = DestructiveAction.HideApp(item)
             },
             onBlock = {
                 actions.onSetAppBlocked(item.id, item.id !in state.preferences.blockedAppIds)
@@ -655,7 +669,7 @@ internal fun AllAppsPage(
             },
             onUninstall = {
                 selectedApp = null
-                uninstallApp(context, item.app)
+                destructiveAction = DestructiveAction.UninstallApp(item.app, item.label)
             },
             onInfo = {
                 selectedApp = null
@@ -670,8 +684,7 @@ internal fun AllAppsPage(
             isOnHome = item.id in state.favoriteFolderIds,
             onDismiss = { selectedFolder = null },
             onHomeClick = {
-                if (item.id in state.favoriteFolderIds) actions.onRemoveHomeItem(HomeItemRef.Folder(item.id))
-                else actions.onAddHomeItem(HomeItemRef.Folder(item.id))
+                actions.onToggleHomeItem(HomeItemRef.Folder(item.id))
                 selectedFolder = null
             },
             onRename = {
@@ -679,8 +692,8 @@ internal fun AllAppsPage(
                 editorDialog = EditorDialog.RenameFolder(item)
             },
             onDelete = {
-                actions.onDeleteFolder(item.id)
                 selectedFolder = null
+                destructiveAction = DestructiveAction.DeleteFolder(item)
             },
         )
     }
@@ -724,6 +737,41 @@ internal fun AllAppsPage(
                 editorDialog = null
             },
         )
+    }
+
+    destructiveAction?.let { action ->
+        when (action) {
+            is DestructiveAction.HideApp -> DestructiveConfirmationDialog(
+                title = stringResource(R.string.confirm_hide_title, action.item.label),
+                message = stringResource(R.string.confirm_hide_message),
+                confirmLabel = stringResource(R.string.confirm_hide_action),
+                onDismiss = { destructiveAction = null },
+                onConfirm = {
+                    actions.onHideApp(action.item.id)
+                    destructiveAction = null
+                },
+            )
+            is DestructiveAction.DeleteFolder -> DestructiveConfirmationDialog(
+                title = stringResource(R.string.confirm_delete_folder_title, action.item.label),
+                message = stringResource(R.string.confirm_delete_folder_message),
+                confirmLabel = stringResource(R.string.confirm_delete_folder_action),
+                onDismiss = { destructiveAction = null },
+                onConfirm = {
+                    actions.onDeleteFolder(action.item.id)
+                    destructiveAction = null
+                },
+            )
+            is DestructiveAction.UninstallApp -> DestructiveConfirmationDialog(
+                title = stringResource(R.string.confirm_uninstall_title, action.label),
+                message = stringResource(R.string.confirm_uninstall_message),
+                confirmLabel = stringResource(R.string.confirm_uninstall_action),
+                onDismiss = { destructiveAction = null },
+                onConfirm = {
+                    actions.onRequestUninstall(action.app)
+                    destructiveAction = null
+                },
+            )
+        }
     }
 }
 
@@ -782,8 +830,8 @@ private fun ManagementSheet(title: String, onDismiss: () -> Unit, content: @Comp
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Spacer(Modifier.weight(1f))
-            Text(title, modifier = Modifier.weight(4f), textAlign = TextAlign.Center, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-            Text("×", modifier = Modifier.weight(1f).clickable(onClick = onDismiss), textAlign = TextAlign.End, fontSize = 34.sp)
+            Text(title, modifier = Modifier.weight(4f), textAlign = TextAlign.Center, fontSize = launcherSp(20.sp), fontWeight = FontWeight.SemiBold)
+            Text("×", modifier = Modifier.weight(1f).clickable(onClick = onDismiss), textAlign = TextAlign.End, fontSize = launcherSp(34.sp))
         }
         HorizontalDivider(color = Color.LightGray)
         content()
@@ -797,7 +845,7 @@ private fun ManagementAction(label: String, onClick: () -> Unit) {
         label,
         modifier = Modifier.fillMaxWidth().height(44.dp).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 8.dp),
         color = Color.White,
-        fontSize = 19.sp,
+        fontSize = launcherSp(19.sp),
     )
 }
 
@@ -817,10 +865,10 @@ internal fun FolderContentsSheet(
         shape = RectangleShape,
         dragHandle = null,
     ) {
-        Text(folder.label, modifier = Modifier.fillMaxWidth().padding(24.dp), textAlign = TextAlign.Center, fontSize = 25.sp, fontWeight = FontWeight.SemiBold)
+        Text(folder.label, modifier = Modifier.fillMaxWidth().padding(24.dp), textAlign = TextAlign.Center, fontSize = launcherSp(25.sp), fontWeight = FontWeight.SemiBold)
         HorizontalDivider(color = Color.LightGray)
         if (folder.apps.isEmpty()) {
-            Text("Empty folder", color = Color.Gray, modifier = Modifier.padding(32.dp), fontSize = 20.sp)
+            Text("Empty folder", color = Color.Gray, modifier = Modifier.padding(32.dp), fontSize = launcherSp(20.sp))
         } else {
             folder.apps.forEach { item ->
                 Text(
@@ -830,7 +878,7 @@ internal fun FolderContentsSheet(
                         onLongClick = { onLongClickApp(item) },
                     ).padding(horizontal = 32.dp, vertical = 12.dp),
                     color = Color.White,
-                    fontSize = 25.sp,
+                    fontSize = launcherSp(25.sp),
                 )
             }
         }

@@ -14,8 +14,12 @@ data class DailyUsage(
     val durationMillis: Long? = null,
 )
 
-class UsageStatsRepository(private val context: Context) {
-    suspend fun loadTodayUsage(): DailyUsage = withContext(Dispatchers.Default) {
+interface UsageStatsRepository {
+    suspend fun loadTodayUsage(): DailyUsage
+}
+
+class AndroidUsageStatsRepository(private val context: Context) : UsageStatsRepository {
+    override suspend fun loadTodayUsage(): DailyUsage = withContext(Dispatchers.Default) {
         if (!hasUsageAccess()) return@withContext DailyUsage()
         val end = System.currentTimeMillis()
         val start = LocalDate.now()

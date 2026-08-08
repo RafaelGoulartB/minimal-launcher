@@ -1,4 +1,39 @@
 <resources>
     <string name="app_name">Minimal Launcher</string>
+    <string name="undo">Undo</string>
+    <string name="cancel">Cancel</string>
+    <string name="app_hidden">App hidden</string>
+    <string name="app_restored">App restored</string>
+    <string name="folder_deleted">Folder deleted</string>
+    <string name="folder_restored">Folder restored</string>
+    <string name="uninstall_opened">Android uninstall confirmation opened</string>
+    <string name="error_apps_refresh">Couldn’t refresh apps. The previous list is still available.</string>
+    <string name="error_preferences_read">Couldn’t read launcher preferences.</string>
+    <string name="error_preferences_cleanup">Couldn’t clean preferences for removed apps.</string>
+    <string name="error_preferences_write">Couldn’t save launcher changes.</string>
+    <string name="error_usage_refresh">Couldn’t refresh today’s usage.</string>
+    <string name="error_uninstall_unavailable">Couldn’t open Android’s uninstall screen.</string>
+    <string name="confirm_hide_title">Hide %1$s?</string>
+    <string name="confirm_hide_message">This app will leave the launcher list. You can restore it later in Settings.</string>
+    <string name="confirm_hide_action">Hide</string>
+    <string name="confirm_delete_folder_title">Delete %1$s?</string>
+    <string name="confirm_delete_folder_message">The apps in this folder will return to the main app list. The folder and its Home placement will be removed.</string>
+    <string name="confirm_delete_folder_action">Delete folder</string>
+    <string name="confirm_uninstall_title">Uninstall %1$s?</string>
+    <string name="confirm_uninstall_message">Android will open its uninstall screen for final confirmation. This cannot be undone from the launcher.</string>
+    <string name="confirm_uninstall_action">Uninstall</string>
+    <string name="appearance_font">Font</string>
+    <string name="appearance_text_size">Text size</string>
+    <string name="appearance_accent">Accent color</string>
+    <string name="font_system">System</string>
+    <string name="font_serif">Serif</string>
+    <string name="font_monospace">Monospace</string>
+    <string name="text_size_small">Small</string>
+    <string name="text_size_medium">Medium</string>
+    <string name="text_size_large">Large</string>
+    <string name="accent_monochrome">Monochrome</string>
+    <string name="accent_blue">Blue</string>
+    <string name="accent_teal">Teal</string>
+    <string name="accent_amber">Amber</string>
+    <string name="accent_violet">Violet</string>
 </resources>
-

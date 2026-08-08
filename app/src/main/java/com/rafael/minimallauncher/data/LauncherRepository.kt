@@ -10,10 +10,16 @@ import kotlinx.coroutines.withContext
 import java.text.Collator
 import java.util.Locale
 
-class LauncherRepository(private val context: Context) {
+interface LauncherRepository {
+    fun loadCachedApps(): List<LauncherApp>
+
+    suspend fun loadApps(): List<LauncherApp>
+}
+
+class PackageManagerLauncherRepository(private val context: Context) : LauncherRepository {
     private val cache = context.getSharedPreferences(APP_CACHE_NAME, Context.MODE_PRIVATE)
 
-    fun loadCachedApps(): List<LauncherApp> = LauncherPreferencesCodec
+    override fun loadCachedApps(): List<LauncherApp> = LauncherPreferencesCodec
         .decodeMap(cache.getString(CACHED_APPS, null).orEmpty())
         .mapNotNull { (componentId, label) ->
             val component = ComponentName.unflattenFromString(componentId)
@@ -24,7 +30,7 @@ class LauncherRepository(private val context: Context) {
             )
         }
 
-    suspend fun loadApps(): List<LauncherApp> = withContext(Dispatchers.Default) {
+    override suspend fun loadApps(): List<LauncherApp> = withContext(Dispatchers.Default) {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val packageManager = context.packageManager
         val activities = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -54,12 +60,11 @@ class LauncherRepository(private val context: Context) {
             .distinctBy(LauncherApp::id)
             .sortedWith(compareBy(collator) { it.label })
 
-        // Never replace a useful snapshot with a transient empty PackageManager result.
-        if (apps.isNotEmpty()) {
-            cache.edit()
-                .putString(CACHED_APPS, LauncherPreferencesCodec.encodeMap(apps.associate { it.id to it.label }))
-                .apply()
-        }
+        // An empty result is valid when the last launchable app was removed. Exceptions
+        // are handled by the ViewModel, so a successful query can safely replace the cache.
+        cache.edit()
+            .putString(CACHED_APPS, LauncherPreferencesCodec.encodeMap(apps.associate { it.id to it.label }))
+            .apply()
         apps
     }
 
