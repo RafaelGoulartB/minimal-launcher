@@ -351,18 +351,18 @@ private fun RefreshUsageWhileVisible(onRefresh: () -> Unit) {
 private fun BatteryIndicator(percentage: Int?) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(percentage?.let { "$it%" } ?: "--%", color = Color.LightGray, fontSize = 16.sp)
-        Canvas(modifier = Modifier.width(50.dp).height(23.dp)) {
-            val strokeWidth = 2.5.dp.toPx()
-            val tipWidth = 4.dp.toPx()
+        Canvas(modifier = Modifier.width(42.dp).height(19.dp)) {
+            val strokeWidth = 2.2.dp.toPx()
+            val tipWidth = 3.5.dp.toPx()
             val bodyWidth = size.width - tipWidth
             val inset = strokeWidth / 2
-            val fillInset = 5.dp.toPx()
+            val fillInset = 4.dp.toPx()
             val fillWidth = (bodyWidth - fillInset * 2) * ((percentage ?: 0) / 100f)
             drawRoundRect(
                 Color.White,
                 androidx.compose.ui.geometry.Offset(inset, inset),
                 androidx.compose.ui.geometry.Size(bodyWidth - strokeWidth, size.height - strokeWidth),
-                androidx.compose.ui.geometry.CornerRadius(7.dp.toPx()),
+                androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()),
                 style = Stroke(strokeWidth),
             )
             if (fillWidth > 0f) {
