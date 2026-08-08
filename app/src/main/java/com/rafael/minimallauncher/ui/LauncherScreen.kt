@@ -92,6 +92,7 @@ private fun HomePage(state: LauncherUiState, onToggleFavorite: (LauncherApp) -> 
             AppList(
                 apps = state.favoriteApps,
                 favoriteIds = state.favoriteIds,
+                customNames = state.preferences.customNames,
                 onToggleFavorite = onToggleFavorite,
             )
         }
@@ -119,6 +120,7 @@ private fun AllAppsPage(
         AppList(
             apps = state.filteredApps,
             favoriteIds = state.favoriteIds,
+            customNames = state.preferences.customNames,
             onToggleFavorite = onToggleFavorite,
         )
     }
@@ -128,6 +130,7 @@ private fun AllAppsPage(
 private fun AppList(
     apps: List<LauncherApp>,
     favoriteIds: Set<String>,
+    customNames: Map<String, String>,
     onToggleFavorite: (LauncherApp) -> Unit,
 ) {
     val context = LocalContext.current
@@ -139,6 +142,7 @@ private fun AppList(
         items(apps, key = LauncherApp::id) { app ->
             AppRow(
                 app = app,
+                displayName = customNames[app.id] ?: app.label,
                 isFavorite = app.id in favoriteIds,
                 onOpen = { openApp(context, app) },
                 onToggleFavorite = { onToggleFavorite(app) },
@@ -150,6 +154,7 @@ private fun AppList(
 @Composable
 private fun AppRow(
     app: LauncherApp,
+    displayName: String,
     isFavorite: Boolean,
     onOpen: () -> Unit,
     onToggleFavorite: () -> Unit,
@@ -163,7 +168,7 @@ private fun AppRow(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = app.label,
+            text = displayName,
             modifier = Modifier.weight(1f),
             color = Color.White,
             fontSize = 26.sp,

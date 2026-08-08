@@ -3,8 +3,11 @@ package com.rafael.minimallauncher.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.rafael.minimallauncher.data.FavoritesRepository
+import com.rafael.minimallauncher.data.ClockFormat
+import com.rafael.minimallauncher.data.HomeItemRef
 import com.rafael.minimallauncher.data.LauncherApp
+import com.rafael.minimallauncher.data.LauncherPreferences
+import com.rafael.minimallauncher.data.LauncherPreferencesRepository
 import com.rafael.minimallauncher.data.LauncherRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -21,28 +24,36 @@ data class LauncherUiState(
     val filteredApps: List<LauncherApp> = emptyList(),
     val favoriteApps: List<LauncherApp> = emptyList(),
     val favoriteIds: Set<String> = emptySet(),
+    val preferences: LauncherPreferences = LauncherPreferences(),
     val searchQuery: String = "",
     val isLoading: Boolean = true,
 )
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
     private val launcherRepository = LauncherRepository(application)
-    private val favoritesRepository = FavoritesRepository(application)
+    private val preferencesRepository = LauncherPreferencesRepository(application)
     private val apps = MutableStateFlow<List<LauncherApp>>(emptyList())
     private val searchQuery = MutableStateFlow("")
 
     val uiState: StateFlow<LauncherUiState> = combine(
         apps,
-        favoritesRepository.favoriteIds,
+        preferencesRepository.preferences,
         searchQuery.debounce(120),
-    ) { installedApps, favoriteIds, query ->
+    ) { installedApps, preferences, query ->
+        val favoriteIds = preferences.homeItems.filterIsInstance<HomeItemRef.App>().mapTo(mutableSetOf()) { it.value }
+        val appsById = installedApps.associateBy(LauncherApp::id)
+        val favoriteApps = preferences.homeItems.mapNotNull { item ->
+            (item as? HomeItemRef.App)?.value?.let(appsById::get)
+        }.filterNot { it.id in preferences.hiddenAppIds }
         LauncherUiState(
             apps = installedApps,
             filteredApps = installedApps.filter { app ->
-                query.isBlank() || app.label.contains(query, ignoreCase = true)
-            },
-            favoriteApps = installedApps.filter { it.id in favoriteIds },
+                app.id !in preferences.hiddenAppIds &&
+                    (query.isBlank() || (preferences.customNames[app.id] ?: app.label).contains(query, ignoreCase = true))
+            }.sortedBy { preferences.customNames[it.id] ?: it.label },
+            favoriteApps = favoriteApps,
             favoriteIds = favoriteIds,
+            preferences = preferences,
             searchQuery = query,
             isLoading = false,
         )
@@ -58,7 +69,9 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun refreshApps() {
         viewModelScope.launch {
-            apps.value = launcherRepository.loadApps()
+            val installedApps = launcherRepository.loadApps()
+            apps.value = installedApps
+            preferencesRepository.migrateLegacyFavorites(installedApps.map(LauncherApp::id))
         }
     }
 
@@ -67,6 +80,57 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun toggleFavorite(app: LauncherApp) {
-        viewModelScope.launch { favoritesRepository.toggle(app) }
+        viewModelScope.launch { preferencesRepository.toggleHomeApp(app.id) }
+    }
+
+    fun addHomeItem(item: HomeItemRef) = launchPreferenceUpdate { preferencesRepository.addHomeItem(item) }
+
+    fun removeHomeItem(item: HomeItemRef) = launchPreferenceUpdate { preferencesRepository.removeHomeItem(item) }
+
+    fun moveHomeItem(fromIndex: Int, toIndex: Int) = launchPreferenceUpdate {
+        preferencesRepository.moveHomeItem(fromIndex, toIndex)
+    }
+
+    fun renameApp(appId: String, name: String?) = launchPreferenceUpdate {
+        preferencesRepository.renameApp(appId, name)
+    }
+
+    fun setAppHidden(appId: String, hidden: Boolean) = launchPreferenceUpdate {
+        preferencesRepository.setAppHidden(appId, hidden)
+    }
+
+    fun setAppBlocked(appId: String, blocked: Boolean) = launchPreferenceUpdate {
+        preferencesRepository.setAppBlocked(appId, blocked)
+    }
+
+    fun createFolder(name: String, appId: String? = null) = launchPreferenceUpdate {
+        preferencesRepository.createFolder(name, appId)
+    }
+
+    fun renameFolder(folderId: String, name: String) = launchPreferenceUpdate {
+        preferencesRepository.renameFolder(folderId, name)
+    }
+
+    fun deleteFolder(folderId: String) = launchPreferenceUpdate {
+        preferencesRepository.deleteFolder(folderId)
+    }
+
+    fun moveAppToFolder(appId: String, folderId: String?) = launchPreferenceUpdate {
+        preferencesRepository.moveAppToFolder(appId, folderId)
+    }
+
+    fun updateClockFormat(value: ClockFormat) = updateSettings { it.copy(clockFormat = value) }
+
+    fun setShowDate(value: Boolean) = updateSettings { it.copy(showDate = value) }
+
+    fun setShowBattery(value: Boolean) = updateSettings { it.copy(showBattery = value) }
+
+    fun setShowDailyUsage(value: Boolean) = updateSettings { it.copy(showDailyUsage = value) }
+
+    private fun updateSettings(transform: (com.rafael.minimallauncher.data.LauncherSettings) -> com.rafael.minimallauncher.data.LauncherSettings) =
+        launchPreferenceUpdate { preferencesRepository.updateSettings(transform) }
+
+    private fun launchPreferenceUpdate(block: suspend () -> Unit) {
+        viewModelScope.launch { block() }
     }
 }
