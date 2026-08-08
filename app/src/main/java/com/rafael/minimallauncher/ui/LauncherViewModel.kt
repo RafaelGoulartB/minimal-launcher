@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.rafael.minimallauncher.R
 import com.rafael.minimallauncher.data.AppUninstallLauncher
 import com.rafael.minimallauncher.data.AppItem
+import com.rafael.minimallauncher.data.AppListControlsPosition
 import com.rafael.minimallauncher.data.ClockFormat
 import com.rafael.minimallauncher.data.DailyUsage
 import com.rafael.minimallauncher.data.FolderDeletionSnapshot
@@ -300,6 +301,9 @@ class LauncherViewModel(
     fun setShowDailyUsage(value: Boolean) = updateSettings { it.copy(showDailyUsage = value) }
 
     fun setFocusSearchOnListOpen(value: Boolean) = updateSettings { it.copy(focusSearchOnListOpen = value) }
+
+    fun setAppListControlsPosition(value: AppListControlsPosition) =
+        updateSettings { it.copy(appListControlsPosition = value) }
 
     fun setFont(value: LauncherFont) = updateSettings { it.copy(font = value) }
 

@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.geometry.Offset
 import com.rafael.minimallauncher.R
 import com.rafael.minimallauncher.data.AppItem
+import com.rafael.minimallauncher.data.AppListControlsPosition
 import com.rafael.minimallauncher.data.ClockFormat
 import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.LauncherApp
@@ -332,6 +333,7 @@ class LauncherUiTest {
         onShowBatteryChange = {},
         onShowDailyUsageChange = {},
         onFocusSearchOnListOpenChange = {},
+        onAppListControlsPositionChange = { _: AppListControlsPosition -> },
         onFontChange = { _: LauncherFont -> },
         onTextSizeChange = { _: LauncherTextSize -> },
         onAccentChange = { _: LauncherAccent -> },

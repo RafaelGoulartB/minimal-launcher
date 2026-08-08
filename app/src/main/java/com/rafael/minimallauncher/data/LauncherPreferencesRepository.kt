@@ -28,6 +28,7 @@ private val SHOW_DATE = booleanPreferencesKey("show_date")
 private val SHOW_BATTERY = booleanPreferencesKey("show_battery")
 private val SHOW_DAILY_USAGE = booleanPreferencesKey("show_daily_usage")
 private val FOCUS_SEARCH_ON_LIST_OPEN = booleanPreferencesKey("focus_search_on_list_open")
+private val APP_LIST_CONTROLS_POSITION = stringPreferencesKey("app_list_controls_position")
 private val FONT = stringPreferencesKey("font")
 private val TEXT_SIZE = stringPreferencesKey("text_size")
 private val ACCENT = stringPreferencesKey("accent")
@@ -223,6 +224,9 @@ class DataStoreLauncherPreferencesRepository(context: Context) : LauncherPrefere
         showBattery = values[SHOW_BATTERY] ?: true,
         showDailyUsage = values[SHOW_DAILY_USAGE] ?: true,
         focusSearchOnListOpen = values[FOCUS_SEARCH_ON_LIST_OPEN] ?: true,
+        appListControlsPosition = runCatching {
+            AppListControlsPosition.valueOf(values[APP_LIST_CONTROLS_POSITION].orEmpty())
+        }.getOrDefault(AppListControlsPosition.TOP),
         font = runCatching { LauncherFont.valueOf(values[FONT].orEmpty()) }
             .getOrDefault(LauncherFont.SYSTEM),
         textSize = runCatching { LauncherTextSize.valueOf(values[TEXT_SIZE].orEmpty()) }
@@ -237,6 +241,7 @@ class DataStoreLauncherPreferencesRepository(context: Context) : LauncherPrefere
         values[SHOW_BATTERY] = settings.showBattery
         values[SHOW_DAILY_USAGE] = settings.showDailyUsage
         values[FOCUS_SEARCH_ON_LIST_OPEN] = settings.focusSearchOnListOpen
+        values[APP_LIST_CONTROLS_POSITION] = settings.appListControlsPosition.name
         values[FONT] = settings.font.name
         values[TEXT_SIZE] = settings.textSize.name
         values[ACCENT] = settings.accent.name
@@ -255,6 +260,7 @@ class DataStoreLauncherPreferencesRepository(context: Context) : LauncherPrefere
             .putBoolean(CACHED_SHOW_BATTERY, preferences.settings.showBattery)
             .putBoolean(CACHED_SHOW_DAILY_USAGE, preferences.settings.showDailyUsage)
             .putBoolean(CACHED_FOCUS_SEARCH, preferences.settings.focusSearchOnListOpen)
+            .putString(CACHED_APP_LIST_CONTROLS_POSITION, preferences.settings.appListControlsPosition.name)
             .putString(CACHED_FONT, preferences.settings.font.name)
             .putString(CACHED_TEXT_SIZE, preferences.settings.textSize.name)
             .putString(CACHED_ACCENT, preferences.settings.accent.name)
@@ -278,6 +284,11 @@ class DataStoreLauncherPreferencesRepository(context: Context) : LauncherPrefere
                 showBattery = cache.getBoolean(CACHED_SHOW_BATTERY, true),
                 showDailyUsage = cache.getBoolean(CACHED_SHOW_DAILY_USAGE, true),
                 focusSearchOnListOpen = cache.getBoolean(CACHED_FOCUS_SEARCH, true),
+                appListControlsPosition = runCatching {
+                    AppListControlsPosition.valueOf(
+                        cache.getString(CACHED_APP_LIST_CONTROLS_POSITION, null).orEmpty(),
+                    )
+                }.getOrDefault(AppListControlsPosition.TOP),
                 font = runCatching {
                     LauncherFont.valueOf(cache.getString(CACHED_FONT, null).orEmpty())
                 }.getOrDefault(LauncherFont.SYSTEM),
@@ -304,6 +315,7 @@ class DataStoreLauncherPreferencesRepository(context: Context) : LauncherPrefere
         const val CACHED_SHOW_BATTERY = "show_battery"
         const val CACHED_SHOW_DAILY_USAGE = "show_daily_usage"
         const val CACHED_FOCUS_SEARCH = "focus_search"
+        const val CACHED_APP_LIST_CONTROLS_POSITION = "app_list_controls_position"
         const val CACHED_FONT = "font"
         const val CACHED_TEXT_SIZE = "text_size"
         const val CACHED_ACCENT = "accent"

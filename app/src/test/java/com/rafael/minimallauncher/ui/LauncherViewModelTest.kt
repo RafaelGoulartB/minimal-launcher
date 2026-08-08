@@ -3,6 +3,7 @@ package com.rafael.minimallauncher.ui
 import android.content.ComponentName
 import com.rafael.minimallauncher.R
 import com.rafael.minimallauncher.data.AppUninstallLauncher
+import com.rafael.minimallauncher.data.AppListControlsPosition
 import com.rafael.minimallauncher.data.ClockFormat
 import com.rafael.minimallauncher.data.DailyUsage
 import com.rafael.minimallauncher.data.FolderDeletionSnapshot
@@ -162,6 +163,21 @@ class LauncherViewModelTest {
         assertEquals("plan", viewModel.uiState.value.searchQuery)
         assertEquals(listOf(renamed), viewModel.uiState.value.filteredApps)
         stateJob.cancel()
+    }
+
+    @Test
+    fun appListControlsPositionIsPersisted() = runTest {
+        val preferences = FakePreferencesRepository()
+        val viewModel = createViewModel(
+            FakeLauncherRepository(cached = listOf(app), loaded = listOf(app)),
+            preferences,
+        )
+        advanceUntilIdle()
+
+        viewModel.setAppListControlsPosition(AppListControlsPosition.BOTTOM)
+        advanceUntilIdle()
+
+        assertEquals(AppListControlsPosition.BOTTOM, preferences.current.settings.appListControlsPosition)
     }
 
     @Test

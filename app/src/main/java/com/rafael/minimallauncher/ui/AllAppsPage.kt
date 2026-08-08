@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -75,6 +76,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rafael.minimallauncher.data.AppItem
+import com.rafael.minimallauncher.data.AppListControlsPosition
 import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.HomeItemRef
 import com.rafael.minimallauncher.data.LauncherItem
@@ -458,6 +460,57 @@ private fun ScrollToTopButton(modifier: Modifier = Modifier, onClick: () -> Unit
     }
 }
 
+@Composable
+private fun AppListControls(
+    searchFieldValue: TextFieldValue,
+    searchFocusRequester: FocusRequester,
+    onSearchChange: (TextFieldValue) -> Unit,
+    onClearSearch: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
+    ) {
+        BasicTextField(
+            value = searchFieldValue,
+            onValueChange = onSearchChange,
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp)
+                .focusRequester(searchFocusRequester)
+                .clip(RoundedCornerShape(30.dp))
+                .background(Color(0xFF1B1B1B)),
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(
+                color = Color.White,
+                fontSize = launcherSp(20.sp),
+                fontFamily = LocalLauncherAppearance.current.fontFamily,
+            ),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            decorationBox = { innerTextField ->
+                Row(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    SearchGlyph()
+                    Spacer(Modifier.width(15.dp))
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (searchFieldValue.text.isEmpty()) {
+                            Text("Search apps", color = Color(0xFF9A9A9A), fontSize = launcherSp(20.sp))
+                        }
+                        innerTextField()
+                    }
+                    if (searchFieldValue.text.isNotEmpty()) {
+                        ClearSearchButton(onClick = onClearSearch)
+                    }
+                }
+            },
+        )
+        GearButton(onClick = onOpenSettings)
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun AllAppsPage(
@@ -500,10 +553,20 @@ internal fun AllAppsPage(
         }
     }
     val isSearching = state.searchQuery.isNotBlank()
+    val controlsAtTop = state.preferences.settings.appListControlsPosition == AppListControlsPosition.TOP
     val showScrollToTop by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
         }
+    }
+    val listToControlsSpacing = if (controlsAtTop) 18.dp else 6.dp
+    val controlsBottomSpacing = if (controlsAtTop) 38.dp else 8.dp
+    val listBottomPadding = when {
+        controlsAtTop && isSearching -> 38.dp
+        controlsAtTop -> 88.dp
+        isSearching -> 8.dp
+        showScrollToTop -> 72.dp
+        else -> 8.dp
     }
 
     LaunchedEffect(isVisible, state.preferences.settings.focusSearchOnListOpen) {
@@ -529,69 +592,37 @@ internal fun AllAppsPage(
             .imePadding()
             .padding(start = 20.dp, end = 4.dp),
     ) {
-        Spacer(Modifier.height(38.dp))
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp),
-        ) {
-            BasicTextField(
-                value = searchFieldValue,
-                onValueChange = { value ->
+        if (controlsAtTop) {
+            Spacer(Modifier.height(38.dp))
+            AppListControls(
+                searchFieldValue = searchFieldValue,
+                searchFocusRequester = searchFocusRequester,
+                onSearchChange = { value ->
                     searchFieldValue = value
                     actions.onSearchChange(value.text)
                 },
-                modifier = Modifier
-                    .weight(1f)
-                    .height(56.dp)
-                    .focusRequester(searchFocusRequester)
-                    .clip(RoundedCornerShape(30.dp))
-                    .background(Color(0xFF1B1B1B)),
-                singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(
-                    color = Color.White,
-                    fontSize = launcherSp(20.sp),
-                    fontFamily = LocalLauncherAppearance.current.fontFamily,
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                decorationBox = { innerTextField ->
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        SearchGlyph()
-                        Spacer(Modifier.width(15.dp))
-                        Box(modifier = Modifier.weight(1f)) {
-                            if (searchFieldValue.text.isEmpty()) {
-                                Text("Search apps", color = Color(0xFF9A9A9A), fontSize = launcherSp(20.sp))
-                            }
-                            innerTextField()
-                        }
-                        if (searchFieldValue.text.isNotEmpty()) {
-                            ClearSearchButton {
-                                searchFieldValue = TextFieldValue("")
-                                actions.onSearchChange("")
-                                searchFocusRequester.requestFocus()
-                            }
-                        }
-                    }
+                onClearSearch = {
+                    searchFieldValue = TextFieldValue("")
+                    actions.onSearchChange("")
+                    searchFocusRequester.requestFocus()
                 },
+                onOpenSettings = onOpenSettings,
             )
-            GearButton(onClick = onOpenSettings)
+            Spacer(Modifier.height(18.dp))
         }
-        Spacer(Modifier.height(18.dp))
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .then(if (controlsAtTop) Modifier else Modifier.statusBarsPadding()),
+        ) {
             LazyColumn(
                 state = listState,
                 reverseLayout = isSearching,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(end = if (isSearching) 0.dp else 24.dp),
-                contentPadding = if (isSearching) {
-                    // reverseLayout flips padding: bottom becomes space before the first item (above keyboard).
-                    PaddingValues(bottom = 38.dp)
-                } else {
-                    PaddingValues(bottom = 88.dp)
-                },
+                contentPadding = PaddingValues(bottom = listBottomPadding),
             ) {
                 items(drawerRows, key = { row -> "${row.item.id}:${row.isFolderChild}" }) { row ->
                     when (val item = row.item) {
@@ -638,6 +669,24 @@ internal fun AllAppsPage(
                     },
                 )
             }
+        }
+        if (!controlsAtTop) {
+            Spacer(Modifier.height(listToControlsSpacing))
+            AppListControls(
+                searchFieldValue = searchFieldValue,
+                searchFocusRequester = searchFocusRequester,
+                onSearchChange = { value ->
+                    searchFieldValue = value
+                    actions.onSearchChange(value.text)
+                },
+                onClearSearch = {
+                    searchFieldValue = TextFieldValue("")
+                    actions.onSearchChange("")
+                    searchFocusRequester.requestFocus()
+                },
+                onOpenSettings = onOpenSettings,
+            )
+            Spacer(Modifier.height(controlsBottomSpacing))
         }
     }
 

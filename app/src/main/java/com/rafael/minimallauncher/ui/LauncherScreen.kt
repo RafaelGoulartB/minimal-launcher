@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.rafael.minimallauncher.data.AppItem
+import com.rafael.minimallauncher.data.AppListControlsPosition
 import com.rafael.minimallauncher.data.ClockFormat
 import com.rafael.minimallauncher.data.HomeItemRef
 import com.rafael.minimallauncher.data.LauncherApp
@@ -66,6 +67,7 @@ data class LauncherActions(
     val onRefreshUsage: () -> Unit,
     val onRequestUninstall: (LauncherApp) -> Unit,
     val onUndo: (Long) -> Unit,
+    val onAppListControlsPositionChange: (AppListControlsPosition) -> Unit = {},
 )
 
 @Composable

@@ -29,6 +29,11 @@ enum class LauncherAccent {
     VIOLET,
 }
 
+enum class AppListControlsPosition {
+    TOP,
+    BOTTOM,
+}
+
 sealed interface HomeItemRef {
     val value: String
     val stableId: String
@@ -62,6 +67,7 @@ data class LauncherSettings(
     val font: LauncherFont = LauncherFont.SYSTEM,
     val textSize: LauncherTextSize = LauncherTextSize.MEDIUM,
     val accent: LauncherAccent = LauncherAccent.MONOCHROME,
+    val appListControlsPosition: AppListControlsPosition = AppListControlsPosition.TOP,
 )
 
 data class LauncherPreferences(

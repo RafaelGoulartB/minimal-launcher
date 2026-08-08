@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.rafael.minimallauncher.R
+import com.rafael.minimallauncher.data.AppListControlsPosition
 import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.ClockFormat
 import com.rafael.minimallauncher.data.HomeItemRef
@@ -137,6 +138,19 @@ internal fun SettingsPage(state: LauncherUiState, actions: LauncherActions, onBa
                 "Focus search when opening app list",
                 preferences.settings.focusSearchOnListOpen,
                 actions.onFocusSearchOnListOpenChange,
+            )
+        }
+        item {
+            SettingChoiceRow(
+                title = stringResource(R.string.app_list_controls_position),
+                choices = AppListControlsPosition.entries.map { position ->
+                    when (position) {
+                        AppListControlsPosition.TOP -> stringResource(R.string.position_top)
+                        AppListControlsPosition.BOTTOM -> stringResource(R.string.position_bottom)
+                    }
+                },
+                selectedIndex = AppListControlsPosition.entries.indexOf(preferences.settings.appListControlsPosition),
+                onSelect = { actions.onAppListControlsPositionChange(AppListControlsPosition.entries[it]) },
             )
         }
 

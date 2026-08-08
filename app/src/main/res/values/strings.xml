@@ -35,4 +35,7 @@
     <string name="accent_teal">Teal</string>
     <string name="accent_amber">Amber</string>
     <string name="accent_violet">Violet</string>
+    <string name="app_list_controls_position">Search and settings position</string>
+    <string name="position_top">Top</string>
+    <string name="position_bottom">Bottom</string>
 </resources>
