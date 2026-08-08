@@ -276,7 +276,7 @@ class LauncherViewModel(
         viewModelScope.launch {
             try {
                 when (uninstallLauncher.requestUninstall(app)) {
-                    UninstallResult.Started -> showSnackbar(R.string.uninstall_opened)
+                    UninstallResult.Started -> Unit
                     UninstallResult.Unavailable -> {
                         logger("No uninstall activity available for ${app.id}", null)
                         showError(R.string.error_uninstall_unavailable)

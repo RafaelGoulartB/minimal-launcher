@@ -6,7 +6,6 @@
     <string name="app_restored">App restored</string>
     <string name="folder_deleted">Folder deleted</string>
     <string name="folder_restored">Folder restored</string>
-    <string name="uninstall_opened">Android uninstall confirmation opened</string>
     <string name="error_apps_refresh">Couldn’t refresh apps. The previous list is still available.</string>
     <string name="error_preferences_read">Couldn’t read launcher preferences.</string>
     <string name="error_preferences_cleanup">Couldn’t clean preferences for removed apps.</string>
