@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.rafael.minimallauncher.ui
 
 import android.content.BroadcastReceiver
@@ -7,7 +9,10 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import android.os.Build
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -29,16 +34,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -47,6 +56,7 @@ import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.HomeItemRef
 import com.rafael.minimallauncher.data.LauncherItem
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -56,25 +66,107 @@ import java.util.Locale
 internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
     val context = LocalContext.current
     var openedFolder by remember { mutableStateOf<FolderItem?>(null) }
+    var displayedItems by remember { mutableStateOf(state.homeItems) }
+    var selectedItemId by remember { mutableStateOf<String?>(null) }
+    var draggedItemId by remember { mutableStateOf<String?>(null) }
+    var originalDragIndex by remember { mutableStateOf(-1) }
+    var currentDragIndex by remember { mutableStateOf(-1) }
+    var dragOffset by remember { mutableStateOf(0f) }
+    var movedDuringDrag by remember { mutableStateOf(false) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(state.homeItems, draggedItemId) {
+        if (draggedItemId == null) displayedItems = state.homeItems
+        if (selectedItemId != null && state.homeItems.none { it.id == selectedItemId }) selectedItemId = null
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
         ClockHeader()
         Spacer(Modifier.height(46.dp))
         when {
             state.isLoading -> Text("Loading apps…", color = Color.Gray)
-            state.homeItems.isEmpty() -> Text("Swipe left to add apps to Home.", color = Color.Gray, fontSize = 18.sp)
+            displayedItems.isEmpty() -> Text("Swipe left to add apps to Home.", color = Color.Gray, fontSize = 18.sp)
             else -> LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                items(state.homeItems, key = LauncherItem::id) { item ->
+                items(displayedItems, key = LauncherItem::id) { item ->
                     Row(
-                        modifier = Modifier.fillMaxWidth().height(64.dp).clickable {
-                            when (item) {
-                                is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
-                                is FolderItem -> openedFolder = item
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(64.dp)
+                            .zIndex(if (draggedItemId == item.id) 1f else 0f)
+                            .graphicsLayer { translationY = if (draggedItemId == item.id) dragOffset else 0f }
+                            .background(if (draggedItemId == item.id) Color(0xFF161616) else Color.Transparent)
+                            .pointerInput(item.id) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        val index = displayedItems.indexOfFirst { it.id == item.id }
+                                        if (index < 0) return@detectDragGesturesAfterLongPress
+                                        draggedItemId = item.id
+                                        originalDragIndex = index
+                                        currentDragIndex = index
+                                        dragOffset = 0f
+                                        movedDuringDrag = false
+                                        selectedItemId = null
+                                    },
+                                    onDrag = { change, amount ->
+                                        change.consume()
+                                        dragOffset += amount.y
+                                        val layout = listState.layoutInfo
+                                        val draggedInfo = layout.visibleItemsInfo.firstOrNull { it.key == item.id }
+                                            ?: return@detectDragGesturesAfterLongPress
+                                        val draggedCenter = draggedInfo.offset + draggedInfo.size / 2f + dragOffset
+                                        val targetInfo = layout.visibleItemsInfo.firstOrNull { info ->
+                                            info.key != item.id && draggedCenter in info.offset.toFloat()..(info.offset + info.size).toFloat()
+                                        }
+                                        if (targetInfo != null && targetInfo.index != currentDragIndex) {
+                                            val mutable = displayedItems.toMutableList()
+                                            val from = mutable.indexOfFirst { it.id == item.id }
+                                            val to = targetInfo.index.coerceIn(0, mutable.lastIndex)
+                                            if (from >= 0 && to != from) {
+                                                mutable.add(to, mutable.removeAt(from))
+                                                displayedItems = mutable
+                                                currentDragIndex = to
+                                                dragOffset += draggedInfo.offset - targetInfo.offset
+                                                movedDuringDrag = true
+                                            }
+                                        }
+                                        val edge = 96.dp.toPx()
+                                        when {
+                                            draggedCenter < layout.viewportStartOffset + edge -> coroutineScope.launch { listState.scrollBy(-22.dp.toPx()) }
+                                            draggedCenter > layout.viewportEndOffset - edge -> coroutineScope.launch { listState.scrollBy(22.dp.toPx()) }
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        if (movedDuringDrag && originalDragIndex >= 0 && currentDragIndex >= 0) {
+                                            actions.onMoveHomeItem(originalDragIndex, currentDragIndex)
+                                        } else {
+                                            selectedItemId = item.id
+                                        }
+                                        draggedItemId = null
+                                        dragOffset = 0f
+                                    },
+                                    onDragCancel = {
+                                        draggedItemId = null
+                                        dragOffset = 0f
+                                        displayedItems = state.homeItems
+                                    },
+                                )
                             }
-                        },
+                            .combinedClickable(
+                                onClick = {
+                                    selectedItemId = null
+                                    when (item) {
+                                        is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
+                                        is FolderItem -> openedFolder = item
+                                    }
+                                },
+                                onLongClick = { selectedItemId = item.id },
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
@@ -85,16 +177,19 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        TextButton(
-                            onClick = {
-                                val ref = when (item) {
-                                    is AppItem -> HomeItemRef.App(item.id)
-                                    is FolderItem -> HomeItemRef.Folder(item.id)
-                                }
-                                actions.onRemoveHomeItem(ref)
-                            },
-                            colors = ButtonDefaults.textButtonColors(contentColor = Color.LightGray),
-                        ) { Text("Remove") }
+                        if (selectedItemId == item.id) {
+                            TextButton(
+                                onClick = {
+                                    val ref = when (item) {
+                                        is AppItem -> HomeItemRef.App(item.id)
+                                        is FolderItem -> HomeItemRef.Folder(item.id)
+                                    }
+                                    selectedItemId = null
+                                    actions.onRemoveHomeItem(ref)
+                                },
+                                colors = ButtonDefaults.textButtonColors(contentColor = Color.LightGray),
+                            ) { Text("Remove") }
+                        }
                     }
                 }
             }

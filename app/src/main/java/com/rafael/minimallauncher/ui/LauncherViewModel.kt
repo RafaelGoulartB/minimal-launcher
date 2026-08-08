@@ -133,7 +133,13 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun removeHomeItem(item: HomeItemRef) = launchPreferenceUpdate { preferencesRepository.removeHomeItem(item) }
 
     fun moveHomeItem(fromIndex: Int, toIndex: Int) = launchPreferenceUpdate {
-        preferencesRepository.moveHomeItem(fromIndex, toIndex)
+        val currentState = uiState.value
+        val fromItem = currentState.homeItems.getOrNull(fromIndex) ?: return@launchPreferenceUpdate
+        val toItem = currentState.homeItems.getOrNull(toIndex) ?: return@launchPreferenceUpdate
+        val persisted = currentState.preferences.homeItems
+        val persistedFrom = persisted.indexOfFirst { it.stableId == fromItem.homeRef().stableId }
+        val persistedTo = persisted.indexOfFirst { it.stableId == toItem.homeRef().stableId }
+        preferencesRepository.moveHomeItem(persistedFrom, persistedTo)
     }
 
     fun renameApp(appId: String, name: String?) = launchPreferenceUpdate {
@@ -177,5 +183,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private fun launchPreferenceUpdate(block: suspend () -> Unit) {
         viewModelScope.launch { block() }
+    }
+
+    private fun LauncherItem.homeRef(): HomeItemRef = when (this) {
+        is AppItem -> HomeItemRef.App(id)
+        is FolderItem -> HomeItemRef.Folder(id)
     }
 }
