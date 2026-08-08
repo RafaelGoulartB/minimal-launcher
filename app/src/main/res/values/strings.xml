@@ -103,4 +103,7 @@
     <string name="settings_delete">Delete</string>
     <string name="settings_name">Name</string>
     <string name="settings_save">Save</string>
+    <string name="battery_status">Battery at %1$d%%</string>
+    <string name="battery_status_charging">Battery at %1$d%%, charging</string>
+    <string name="battery_status_unavailable">Battery status unavailable</string>
 </resources>

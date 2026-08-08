@@ -107,7 +107,7 @@ internal fun SettingsPage(state: LauncherUiState, actions: LauncherActions, onBa
             .background(Color.Black)
             .statusBarsPadding()
             .navigationBarsPadding(),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 48.dp),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, bottom = 48.dp),
     ) {
         item(key = "settings-header") {
             SettingsHeader(onBack = onBack)

@@ -49,12 +49,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
@@ -72,6 +77,7 @@ import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.HomeItemRef
 import com.rafael.minimallauncher.data.LauncherItem
 import com.rafael.minimallauncher.data.LauncherSettings
+import com.rafael.minimallauncher.R
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -313,7 +319,7 @@ private fun ClockHeader(settings: LauncherSettings) {
     val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     var now by remember { mutableStateOf(LocalDateTime.now()) }
-    val batteryPercentage = rememberBatteryPercentage()
+    val batteryState = rememberBatteryState()
     LaunchedEffect(Unit) {
         while (true) {
             now = LocalDateTime.now()
@@ -345,7 +351,7 @@ private fun ClockHeader(settings: LauncherSettings) {
         }
         if (settings.showBattery) {
             Spacer(Modifier.height(2.dp))
-            BatteryIndicator(batteryPercentage)
+            BatteryIndicator(batteryState)
         }
     }
 }
@@ -392,17 +398,45 @@ private fun RefreshUsageWhileVisible(onRefresh: () -> Unit) {
     }
 }
 
+internal data class HomeBatteryState(
+    val percentage: Int? = null,
+    val isCharging: Boolean = false,
+)
+
+internal fun homeBatteryState(level: Int, scale: Int, status: Int): HomeBatteryState = HomeBatteryState(
+    percentage = if (level >= 0 && scale > 0) {
+        (level * 100f / scale).toInt().coerceIn(0, 100)
+    } else {
+        null
+    },
+    isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
+        status == BatteryManager.BATTERY_STATUS_FULL,
+)
+
 @Composable
-private fun BatteryIndicator(percentage: Int?) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(percentage?.let { "$it%" } ?: "--%", color = Color.LightGray, fontSize = launcherSp(14.sp))
+private fun BatteryIndicator(state: HomeBatteryState) {
+    val accessibilityLabel = when {
+        state.percentage == null -> stringResource(R.string.battery_status_unavailable)
+        state.isCharging -> stringResource(R.string.battery_status_charging, state.percentage)
+        else -> stringResource(R.string.battery_status, state.percentage)
+    }
+    Row(
+        modifier = Modifier.clearAndSetSemantics { contentDescription = accessibilityLabel },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            state.percentage?.let { "$it%" } ?: "--%",
+            color = Color.LightGray,
+            fontSize = launcherSp(14.sp),
+        )
         Canvas(modifier = Modifier.width(30.dp).height(14.dp)) {
             val strokeWidth = 1.8.dp.toPx()
             val tipWidth = 2.5.dp.toPx()
             val bodyWidth = size.width - tipWidth
             val inset = strokeWidth / 2
             val fillInset = 3.dp.toPx()
-            val fillWidth = (bodyWidth - fillInset * 2) * ((percentage ?: 0) / 100f)
+            val fillWidth = (bodyWidth - fillInset * 2) * ((state.percentage ?: 0) / 100f)
             drawRoundRect(
                 Color.White,
                 androidx.compose.ui.geometry.Offset(inset, inset),
@@ -424,15 +458,35 @@ private fun BatteryIndicator(percentage: Int?) {
                 androidx.compose.ui.geometry.Size(tipWidth, size.height * 0.4f),
                 androidx.compose.ui.geometry.CornerRadius(1.5.dp.toPx()),
             )
+            if (state.isCharging) {
+                val boltPath = Path().apply {
+                    moveTo(bodyWidth * 0.56f, size.height * 0.10f)
+                    lineTo(bodyWidth * 0.35f, size.height * 0.55f)
+                    lineTo(bodyWidth * 0.50f, size.height * 0.55f)
+                    lineTo(bodyWidth * 0.42f, size.height * 0.92f)
+                    lineTo(bodyWidth * 0.71f, size.height * 0.42f)
+                    lineTo(bodyWidth * 0.56f, size.height * 0.42f)
+                    close()
+                }
+                val boltOnFilledArea = fillInset + fillWidth >= bodyWidth * 0.54f
+                val boltColor = if (boltOnFilledArea) Color.Black else Color.White
+                val boltOutline = if (boltOnFilledArea) Color.White else Color.Black
+                drawPath(
+                    path = boltPath,
+                    color = boltOutline,
+                    style = Stroke(width = 1.1.dp.toPx(), join = StrokeJoin.Round),
+                )
+                drawPath(path = boltPath, color = boltColor)
+            }
         }
     }
 }
 
 @Composable
-private fun rememberBatteryPercentage(): Int? {
+private fun rememberBatteryState(): HomeBatteryState {
     val context = LocalContext.current.applicationContext
     val lifecycleOwner = LocalLifecycleOwner.current
-    var percentage by remember { mutableStateOf<Int?>(null) }
+    var batteryState by remember { mutableStateOf(HomeBatteryState()) }
     DisposableEffect(context, lifecycleOwner) {
         var registered = false
         val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
@@ -440,7 +494,11 @@ private fun rememberBatteryPercentage(): Int? {
             override fun onReceive(context: Context, intent: Intent) {
                 val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
                 val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
-                percentage = if (level >= 0 && scale > 0) (level * 100f / scale).toInt().coerceIn(0, 100) else null
+                val status = intent.getIntExtra(
+                    BatteryManager.EXTRA_STATUS,
+                    BatteryManager.BATTERY_STATUS_UNKNOWN,
+                )
+                batteryState = homeBatteryState(level = level, scale = scale, status = status)
             }
         }
         fun register() {
@@ -474,5 +532,5 @@ private fun rememberBatteryPercentage(): Int? {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-    return percentage
+    return batteryState
 }
