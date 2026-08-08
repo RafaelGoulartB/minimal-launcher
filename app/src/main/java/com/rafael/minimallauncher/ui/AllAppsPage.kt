@@ -205,28 +205,6 @@ private fun AlphabetRail(
 }
 
 @Composable
-private fun FolderGlyph() {
-    Canvas(modifier = Modifier.size(24.dp)) {
-        val stroke = 1.8.dp.toPx()
-        val left = 2.dp.toPx()
-        val top = 6.dp.toPx()
-        val right = size.width - 2.dp.toPx()
-        val bottom = size.height - 5.dp.toPx()
-        val tabRight = left + size.width * 0.38f
-        drawLine(Color(0xFFBDBDBD), Offset(left, top), Offset(left + 6.dp.toPx(), top))
-        drawLine(Color(0xFFBDBDBD), Offset(left + 6.dp.toPx(), top), Offset(tabRight, top + 4.dp.toPx()))
-        drawLine(Color(0xFFBDBDBD), Offset(tabRight, top + 4.dp.toPx()), Offset(right, top + 4.dp.toPx()))
-        drawRoundRect(
-            color = Color(0xFFBDBDBD),
-            topLeft = Offset(left, top + 2.dp.toPx()),
-            size = androidx.compose.ui.geometry.Size(right - left, bottom - top),
-            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
-            style = Stroke(stroke),
-        )
-    }
-}
-
-@Composable
 private fun FolderExpandGlyph(expanded: Boolean) {
     Box(
         modifier = Modifier
@@ -236,24 +214,85 @@ private fun FolderExpandGlyph(expanded: Boolean) {
             },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(modifier = Modifier.size(18.dp)) {
+        Canvas(modifier = Modifier.size(14.dp)) {
             val stroke = 2.dp.toPx()
-            val centerX = size.width / 2f
-            val edgeX = 3.dp.toPx()
-            val edgeY = if (expanded) size.height - 4.dp.toPx() else 4.dp.toPx()
-            drawLine(
-                Color(0xFFBDBDBD),
-                Offset(edgeX, edgeY),
-                Offset(centerX, if (expanded) 4.dp.toPx() else size.height - 4.dp.toPx()),
-                strokeWidth = stroke,
-            )
-            drawLine(
-                Color(0xFFBDBDBD),
-                Offset(centerX, if (expanded) 4.dp.toPx() else size.height - 4.dp.toPx()),
-                Offset(size.width - edgeX, edgeY),
-                strokeWidth = stroke,
-            )
+            val color = Color(0xFF9A9A9A)
+            val midY = size.height / 2f
+            val tipY = if (expanded) 3.dp.toPx() else size.height - 3.dp.toPx()
+            drawLine(color, Offset(2.dp.toPx(), midY), Offset(size.width / 2f, tipY), strokeWidth = stroke)
+            drawLine(color, Offset(size.width / 2f, tipY), Offset(size.width - 2.dp.toPx(), midY), strokeWidth = stroke)
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DrawerFolderRow(
+    item: FolderItem,
+    expanded: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val appCount = item.apps.size
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            item.label,
+            modifier = Modifier.weight(1f),
+            color = Color.White,
+            fontSize = 21.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            if (appCount == 1) "1 app" else "$appCount apps",
+            color = Color(0xFF8F8F8F),
+            fontSize = 14.sp,
+            maxLines = 1,
+        )
+        Spacer(Modifier.width(4.dp))
+        FolderExpandGlyph(expanded = expanded)
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DrawerAppRow(
+    item: AppItem,
+    isFolderChild: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .padding(start = if (isFolderChild) 14.dp else 0.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (isFolderChild) {
+            Box(
+                modifier = Modifier
+                    .width(2.dp)
+                    .height(22.dp)
+                    .clip(RoundedCornerShape(1.dp))
+                    .background(Color(0xFF3A3A3A)),
+            )
+            Spacer(Modifier.width(14.dp))
+        }
+        Text(
+            item.label,
+            color = Color.White,
+            fontSize = 21.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -404,60 +443,25 @@ internal fun AllAppsPage(
                 },
             ) {
                 items(drawerRows, key = { row -> "${row.item.id}:${row.isFolderChild}" }) { row ->
-                    val item = row.item
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(44.dp)
-                            .padding(start = if (row.isFolderChild) 26.dp else 0.dp)
-                            .combinedClickable(
-                                onClick = {
-                                    when (item) {
-                                        is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
-                                        is FolderItem -> {
-                                            expandedFolderIds = if (item.id in expandedFolderIds) {
-                                                expandedFolderIds - item.id
-                                            } else {
-                                                expandedFolderIds + item.id
-                                            }
-                                        }
-                                    }
-                                },
-                                onLongClick = {
-                                    when (item) {
-                                        is AppItem -> selectedApp = item
-                                        is FolderItem -> selectedFolder = item
-                                    }
-                                },
-                            ),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (row.isFolderChild) {
-                            Box(
-                                modifier = Modifier
-                                    .width(2.dp)
-                                    .height(30.dp)
-                                    .background(Color(0xFF555555)),
-                            )
-                            Spacer(Modifier.width(12.dp))
-                        }
-                        if (item is FolderItem) {
-                            FolderExpandGlyph(expanded = item.id in expandedFolderIds)
-                            Spacer(Modifier.width(10.dp))
-                        }
-                        Text(
-                            item.label,
-                            modifier = if (item is FolderItem) Modifier.weight(1f) else Modifier,
-                            color = if (item is FolderItem) Color(0xFFE4E4E4) else Color.White,
-                            fontSize = 21.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                    when (val item = row.item) {
+                        is FolderItem -> DrawerFolderRow(
+                            item = item,
+                            expanded = item.id in expandedFolderIds,
+                            onClick = {
+                                expandedFolderIds = if (item.id in expandedFolderIds) {
+                                    expandedFolderIds - item.id
+                                } else {
+                                    expandedFolderIds + item.id
+                                }
+                            },
+                            onLongClick = { selectedFolder = item },
                         )
-                        if (item is FolderItem) {
-                            Spacer(Modifier.width(12.dp))
-                            FolderGlyph()
-                            Spacer(Modifier.width(8.dp))
-                        }
+                        is AppItem -> DrawerAppRow(
+                            item = item,
+                            isFolderChild = row.isFolderChild,
+                            onClick = { openApp(context, item, state.preferences.blockedAppIds) },
+                            onLongClick = { selectedApp = item },
+                        )
                     }
                 }
             }
