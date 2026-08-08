@@ -218,15 +218,15 @@ private fun BatteryIndicator(percentage: Int?) {
         Text(
             text = percentage?.let { "$it%" } ?: "--%",
             color = Color.LightGray,
-            fontSize = 18.sp,
+            fontSize = 16.sp,
         )
         androidx.compose.foundation.Canvas(
             modifier = Modifier
-                .width(62.dp)
-                .height(28.dp),
+                .width(50.dp)
+                .height(23.dp),
         ) {
-            val strokeWidth = 3.dp.toPx()
-            val tipWidth = 5.dp.toPx()
+            val strokeWidth = 2.5.dp.toPx()
+            val tipWidth = 4.dp.toPx()
             val bodyWidth = size.width - tipWidth
             val inset = strokeWidth / 2
             val bodyHeight = size.height - strokeWidth
