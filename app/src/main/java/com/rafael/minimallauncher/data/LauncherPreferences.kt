@@ -9,6 +9,26 @@ enum class ClockFormat {
     TWENTY_FOUR_HOUR,
 }
 
+enum class LauncherFont {
+    SYSTEM,
+    SERIF,
+    MONOSPACE,
+}
+
+enum class LauncherTextSize {
+    SMALL,
+    MEDIUM,
+    LARGE,
+}
+
+enum class LauncherAccent {
+    MONOCHROME,
+    BLUE,
+    TEAL,
+    AMBER,
+    VIOLET,
+}
+
 sealed interface HomeItemRef {
     val value: String
     val stableId: String
@@ -27,12 +47,21 @@ data class LauncherFolder(
     val name: String,
 )
 
+data class FolderDeletionSnapshot(
+    val folder: LauncherFolder,
+    val memberAppIds: Set<String>,
+    val homeIndex: Int?,
+)
+
 data class LauncherSettings(
     val clockFormat: ClockFormat = ClockFormat.SYSTEM,
     val showDate: Boolean = true,
     val showBattery: Boolean = true,
     val showDailyUsage: Boolean = true,
     val focusSearchOnListOpen: Boolean = true,
+    val font: LauncherFont = LauncherFont.SYSTEM,
+    val textSize: LauncherTextSize = LauncherTextSize.MEDIUM,
+    val accent: LauncherAccent = LauncherAccent.MONOCHROME,
 )
 
 data class LauncherPreferences(
