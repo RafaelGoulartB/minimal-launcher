@@ -39,6 +39,7 @@ data class LauncherActions(
     val onShowDateChange: (Boolean) -> Unit,
     val onShowBatteryChange: (Boolean) -> Unit,
     val onShowDailyUsageChange: (Boolean) -> Unit,
+    val onFocusSearchOnListOpenChange: (Boolean) -> Unit,
     val onRefreshUsage: () -> Unit,
 )
 
@@ -60,7 +61,12 @@ fun LauncherScreen(
     ) { page ->
         when (page) {
             0 -> HomePage(state, actions)
-            else -> AllAppsPage(state, actions, onOpenSettings = { showSettings = true })
+            else -> AllAppsPage(
+                state = state,
+                actions = actions,
+                onOpenSettings = { showSettings = true },
+                isVisible = pagerState.currentPage == 1,
+            )
         }
     }
 }

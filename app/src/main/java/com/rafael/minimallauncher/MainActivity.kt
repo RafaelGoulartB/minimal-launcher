@@ -39,6 +39,7 @@ class MainActivity : ComponentActivity() {
                         onShowDateChange = launcherViewModel::setShowDate,
                         onShowBatteryChange = launcherViewModel::setShowBattery,
                         onShowDailyUsageChange = launcherViewModel::setShowDailyUsage,
+                        onFocusSearchOnListOpenChange = launcherViewModel::setFocusSearchOnListOpen,
                         onRefreshUsage = launcherViewModel::refreshUsage,
                     ),
                 )

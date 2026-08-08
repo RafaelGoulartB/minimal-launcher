@@ -35,10 +35,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -54,8 +56,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import com.rafael.minimallauncher.data.AppItem
 import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.HomeItemRef
@@ -246,8 +252,16 @@ private fun ScrollToTopButton(modifier: Modifier = Modifier, onClick: () -> Unit
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpenSettings: () -> Unit) {
+internal fun AllAppsPage(
+    state: LauncherUiState,
+    actions: LauncherActions,
+    onOpenSettings: () -> Unit,
+    isVisible: Boolean = true,
+) {
     val context = LocalContext.current
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
     var selectedApp by remember { mutableStateOf<AppItem?>(null) }
     var selectedFolder by remember { mutableStateOf<FolderItem?>(null) }
     var expandedFolderIds by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -275,6 +289,17 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
         }
     }
 
+    LaunchedEffect(isVisible, state.preferences.settings.focusSearchOnListOpen) {
+        if (isVisible && state.preferences.settings.focusSearchOnListOpen) {
+            withFrameNanos { }
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        } else if (!isVisible) {
+            focusManager.clearFocus(force = true)
+            keyboardController?.hide()
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().padding(start = 20.dp, end = 4.dp)) {
         Spacer(Modifier.height(38.dp))
         Row(
@@ -287,6 +312,7 @@ internal fun AllAppsPage(state: LauncherUiState, actions: LauncherActions, onOpe
                 modifier = Modifier
                     .weight(1f)
                     .height(56.dp)
+                    .focusRequester(searchFocusRequester)
                     .clip(RoundedCornerShape(30.dp))
                     .background(Color(0xFF1B1B1B)),
                 singleLine = true,

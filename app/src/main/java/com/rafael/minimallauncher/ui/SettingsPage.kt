@@ -80,6 +80,13 @@ internal fun SettingsPage(state: LauncherUiState, actions: LauncherActions, onBa
         item { SettingSwitch("Show date", preferences.settings.showDate, actions.onShowDateChange) }
         item { SettingSwitch("Show battery", preferences.settings.showBattery, actions.onShowBatteryChange) }
         item { SettingSwitch("Show today's usage", preferences.settings.showDailyUsage, actions.onShowDailyUsageChange) }
+        item {
+            SettingSwitch(
+                "Focus search when opening app list",
+                preferences.settings.focusSearchOnListOpen,
+                actions.onFocusSearchOnListOpenChange,
+            )
+        }
 
         item { SectionTitle("Usage access") }
         item {

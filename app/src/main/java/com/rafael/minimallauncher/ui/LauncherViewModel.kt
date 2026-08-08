@@ -189,6 +189,8 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     fun setShowDailyUsage(value: Boolean) = updateSettings { it.copy(showDailyUsage = value) }
 
+    fun setFocusSearchOnListOpen(value: Boolean) = updateSettings { it.copy(focusSearchOnListOpen = value) }
+
     private fun updateSettings(transform: (com.rafael.minimallauncher.data.LauncherSettings) -> com.rafael.minimallauncher.data.LauncherSettings) =
         launchPreferenceUpdate { preferencesRepository.updateSettings(transform) }
 

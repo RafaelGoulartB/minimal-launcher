@@ -139,6 +139,7 @@ class LauncherUiTest {
         onShowDateChange = {},
         onShowBatteryChange = {},
         onShowDailyUsageChange = {},
+        onFocusSearchOnListOpenChange = {},
         onRefreshUsage = {},
     )
 }

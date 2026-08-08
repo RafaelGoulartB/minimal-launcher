@@ -32,6 +32,7 @@ data class LauncherSettings(
     val showDate: Boolean = true,
     val showBattery: Boolean = true,
     val showDailyUsage: Boolean = true,
+    val focusSearchOnListOpen: Boolean = true,
 )
 
 data class LauncherPreferences(

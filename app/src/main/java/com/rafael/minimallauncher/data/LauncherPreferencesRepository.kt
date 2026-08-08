@@ -24,6 +24,7 @@ private val CLOCK_FORMAT = stringPreferencesKey("clock_format")
 private val SHOW_DATE = booleanPreferencesKey("show_date")
 private val SHOW_BATTERY = booleanPreferencesKey("show_battery")
 private val SHOW_DAILY_USAGE = booleanPreferencesKey("show_daily_usage")
+private val FOCUS_SEARCH_ON_LIST_OPEN = booleanPreferencesKey("focus_search_on_list_open")
 
 class LauncherPreferencesRepository(context: Context) {
     private val dataStore = PreferenceDataStoreFactory.create(
@@ -152,6 +153,7 @@ class LauncherPreferencesRepository(context: Context) {
         showDate = values[SHOW_DATE] ?: true,
         showBattery = values[SHOW_BATTERY] ?: true,
         showDailyUsage = values[SHOW_DAILY_USAGE] ?: true,
+        focusSearchOnListOpen = values[FOCUS_SEARCH_ON_LIST_OPEN] ?: true,
     )
 
     private fun writeSettings(values: androidx.datastore.preferences.core.MutablePreferences, settings: LauncherSettings) {
@@ -159,5 +161,6 @@ class LauncherPreferencesRepository(context: Context) {
         values[SHOW_DATE] = settings.showDate
         values[SHOW_BATTERY] = settings.showBattery
         values[SHOW_DAILY_USAGE] = settings.showDailyUsage
+        values[FOCUS_SEARCH_ON_LIST_OPEN] = settings.focusSearchOnListOpen
     }
 }
