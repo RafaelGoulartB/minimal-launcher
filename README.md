@@ -56,3 +56,21 @@ The app keeps a small, focused structure:
 - Jetpack Compose and Material 3
 - AndroidX ViewModel
 - Jetpack DataStore
+
+## Command shortcuts
+
+After installing `make`, use the root `Makefile` as a convenient interface for Gradle and ADB:
+
+```powershell
+make help
+make run
+make lint
+make test
+make bundle
+```
+
+`make run` defaults to `emulator-5554`. Override it when needed:
+
+```powershell
+make run DEVICE=emulator-5556
+```
