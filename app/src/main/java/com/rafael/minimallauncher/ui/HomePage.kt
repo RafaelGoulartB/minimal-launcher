@@ -108,7 +108,6 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
         ClockHeader(state.preferences.settings)
         Spacer(Modifier.height(56.dp))
         when {
-            state.isLoading -> Text("Loading apps…", color = Color.Gray)
             displayedItems.isEmpty() -> Text("Swipe left to add apps to Home.", color = Color.Gray, fontSize = 18.sp)
             else -> LazyColumn(
                 state = listState,

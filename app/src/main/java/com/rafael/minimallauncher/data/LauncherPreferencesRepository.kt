@@ -8,11 +8,11 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStoreFile
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
-import androidx.datastore.preferences.core.emptyPreferences
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import java.util.UUID
 
 private const val DATASTORE_NAME = "launcher_preferences"
@@ -30,17 +30,22 @@ private val SHOW_DAILY_USAGE = booleanPreferencesKey("show_daily_usage")
 private val FOCUS_SEARCH_ON_LIST_OPEN = booleanPreferencesKey("focus_search_on_list_open")
 
 class LauncherPreferencesRepository(context: Context) {
+    private val cache = context.getSharedPreferences(PREFERENCES_CACHE_NAME, Context.MODE_PRIVATE)
     private val dataStore = PreferenceDataStoreFactory.create(
         produceFile = { context.preferencesDataStoreFile(DATASTORE_NAME) },
     )
 
+    val cachedPreferences: LauncherPreferences
+        get() = decodeCachedPreferences()
+
     val preferences: Flow<LauncherPreferences> = dataStore.data
+        .map(::decodePreferences)
         .catch { exception ->
             if (exception is CancellationException) throw exception
             // HOME must remain usable even if the preferences file cannot be read.
-            emit(emptyPreferences())
+            emit(cachedPreferences)
         }
-        .map(::decodePreferences)
+        .onEach(::cachePreferences)
 
     suspend fun migrateLegacyFavorites(orderedAppIds: List<String>) {
         dataStore.edit { values ->
@@ -171,5 +176,57 @@ class LauncherPreferencesRepository(context: Context) {
         values[SHOW_BATTERY] = settings.showBattery
         values[SHOW_DAILY_USAGE] = settings.showDailyUsage
         values[FOCUS_SEARCH_ON_LIST_OPEN] = settings.focusSearchOnListOpen
+    }
+
+    private fun cachePreferences(preferences: LauncherPreferences) {
+        cache.edit()
+            .putString(CACHED_HOME_ITEMS, LauncherPreferencesCodec.encodeHomeItems(preferences.homeItems))
+            .putString(CACHED_CUSTOM_NAMES, LauncherPreferencesCodec.encodeMap(preferences.customNames))
+            .putStringSet(CACHED_HIDDEN_APPS, preferences.hiddenAppIds)
+            .putStringSet(CACHED_BLOCKED_APPS, preferences.blockedAppIds)
+            .putString(CACHED_FOLDERS, LauncherPreferencesCodec.encodeFolders(preferences.folders))
+            .putString(CACHED_APP_FOLDERS, LauncherPreferencesCodec.encodeMap(preferences.appFolders))
+            .putString(CACHED_CLOCK_FORMAT, preferences.settings.clockFormat.name)
+            .putBoolean(CACHED_SHOW_DATE, preferences.settings.showDate)
+            .putBoolean(CACHED_SHOW_BATTERY, preferences.settings.showBattery)
+            .putBoolean(CACHED_SHOW_DAILY_USAGE, preferences.settings.showDailyUsage)
+            .putBoolean(CACHED_FOCUS_SEARCH, preferences.settings.focusSearchOnListOpen)
+            .apply()
+    }
+
+    private fun decodeCachedPreferences(): LauncherPreferences {
+        if (!cache.contains(CACHED_HOME_ITEMS)) return LauncherPreferences()
+        return LauncherPreferences(
+            homeItems = LauncherPreferencesCodec.decodeHomeItems(cache.getString(CACHED_HOME_ITEMS, null).orEmpty()),
+            customNames = LauncherPreferencesCodec.decodeMap(cache.getString(CACHED_CUSTOM_NAMES, null).orEmpty()),
+            hiddenAppIds = cache.getStringSet(CACHED_HIDDEN_APPS, emptySet()).orEmpty(),
+            blockedAppIds = cache.getStringSet(CACHED_BLOCKED_APPS, emptySet()).orEmpty(),
+            folders = LauncherPreferencesCodec.decodeFolders(cache.getString(CACHED_FOLDERS, null).orEmpty()),
+            appFolders = LauncherPreferencesCodec.decodeMap(cache.getString(CACHED_APP_FOLDERS, null).orEmpty()),
+            settings = LauncherSettings(
+                clockFormat = runCatching {
+                    ClockFormat.valueOf(cache.getString(CACHED_CLOCK_FORMAT, null).orEmpty())
+                }.getOrDefault(ClockFormat.SYSTEM),
+                showDate = cache.getBoolean(CACHED_SHOW_DATE, true),
+                showBattery = cache.getBoolean(CACHED_SHOW_BATTERY, true),
+                showDailyUsage = cache.getBoolean(CACHED_SHOW_DAILY_USAGE, true),
+                focusSearchOnListOpen = cache.getBoolean(CACHED_FOCUS_SEARCH, true),
+            ),
+        )
+    }
+
+    private companion object {
+        const val PREFERENCES_CACHE_NAME = "launcher_preferences_cache"
+        const val CACHED_HOME_ITEMS = "home_items"
+        const val CACHED_CUSTOM_NAMES = "custom_names"
+        const val CACHED_HIDDEN_APPS = "hidden_apps"
+        const val CACHED_BLOCKED_APPS = "blocked_apps"
+        const val CACHED_FOLDERS = "folders"
+        const val CACHED_APP_FOLDERS = "app_folders"
+        const val CACHED_CLOCK_FORMAT = "clock_format"
+        const val CACHED_SHOW_DATE = "show_date"
+        const val CACHED_SHOW_BATTERY = "show_battery"
+        const val CACHED_SHOW_DAILY_USAGE = "show_daily_usage"
+        const val CACHED_FOCUS_SEARCH = "focus_search"
     }
 }

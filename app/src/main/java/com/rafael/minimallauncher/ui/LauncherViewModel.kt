@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
@@ -40,14 +41,50 @@ data class LauncherUiState(
     val preferences: LauncherPreferences = LauncherPreferences(),
     val dailyUsage: DailyUsage = DailyUsage(),
     val searchQuery: String = "",
-    val isLoading: Boolean = true,
+    val isLoading: Boolean = false,
 )
+
+private fun createCachedUiState(
+    installedApps: List<LauncherApp>,
+    preferences: LauncherPreferences,
+): LauncherUiState {
+    val visibleApps = installedApps
+        .filterNot { it.id in preferences.hiddenAppIds }
+        .associate { app -> app.id to AppItem(app, preferences.customNames[app.id] ?: app.label) }
+    val folders = preferences.folders.associate { folder ->
+        folder.id to FolderItem(
+            folder = folder,
+            apps = preferences.appFolders
+                .filterValues { it == folder.id }
+                .keys
+                .mapNotNull(visibleApps::get)
+                .sortedBy(AppItem::label),
+        )
+    }
+    val homeItems = preferences.homeItems.mapNotNull { item ->
+        when (item) {
+            is HomeItemRef.App -> visibleApps[item.value]
+            is HomeItemRef.Folder -> folders[item.value]
+        }
+    }
+    return LauncherUiState(
+        apps = installedApps,
+        favoriteApps = preferences.homeItems.mapNotNull { item ->
+            (item as? HomeItemRef.App)?.value?.let { visibleApps[it]?.app }
+        },
+        favoriteIds = preferences.homeItems.filterIsInstance<HomeItemRef.App>().mapTo(mutableSetOf()) { it.value },
+        favoriteFolderIds = preferences.homeItems.filterIsInstance<HomeItemRef.Folder>().mapTo(mutableSetOf()) { it.value },
+        homeItems = homeItems,
+        folders = folders.values.toList(),
+        preferences = preferences,
+    )
+}
 
 class LauncherViewModel(application: Application) : AndroidViewModel(application) {
     private val launcherRepository = LauncherRepository(application)
     private val preferencesRepository = LauncherPreferencesRepository(application)
     private val usageStatsRepository = UsageStatsRepository(application)
-    private val apps = MutableStateFlow<List<LauncherApp>>(emptyList())
+    private val apps = MutableStateFlow(launcherRepository.loadCachedApps())
     private val searchQuery = MutableStateFlow("")
     private val dailyUsage = MutableStateFlow(DailyUsage())
     private var appsRefreshJob: Job? = null
@@ -116,7 +153,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     }.flowOn(Dispatchers.Default).stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = LauncherUiState(),
+        initialValue = createCachedUiState(
+            installedApps = apps.value,
+            preferences = preferencesRepository.cachedPreferences,
+        ),
     )
 
     init {
@@ -127,15 +167,21 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     fun refreshApps() {
         if (appsRefreshJob?.isActive == true) return
         appsRefreshJob = viewModelScope.launch {
-            try {
-                val installedApps = launcherRepository.loadApps()
-                apps.value = installedApps
-                preferencesRepository.migrateLegacyFavorites(installedApps.map(LauncherApp::id))
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (exception: Exception) {
-                // A broken package entry or transient PackageManager failure must not kill HOME.
-                Log.e(TAG, "Unable to refresh installed apps", exception)
+            repeat(APP_LOAD_ATTEMPTS) { attempt ->
+                try {
+                    val installedApps = launcherRepository.loadApps()
+                    if (installedApps.isNotEmpty()) {
+                        apps.value = installedApps
+                        preferencesRepository.migrateLegacyFavorites(installedApps.map(LauncherApp::id))
+                        return@launch
+                    }
+                } catch (exception: CancellationException) {
+                    throw exception
+                } catch (exception: Exception) {
+                    // A transient PackageManager failure must not erase the cached HOME.
+                    Log.e(TAG, "Unable to refresh installed apps (attempt ${attempt + 1})", exception)
+                }
+                if (attempt < APP_LOAD_ATTEMPTS - 1) delay(APP_LOAD_RETRY_DELAY_MS)
             }
         }
     }
@@ -237,5 +283,7 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     private companion object {
         const val TAG = "LauncherViewModel"
+        const val APP_LOAD_ATTEMPTS = 3
+        const val APP_LOAD_RETRY_DELAY_MS = 250L
     }
 }

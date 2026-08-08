@@ -1,6 +1,7 @@
 package com.rafael.minimallauncher.data
 
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -10,6 +11,19 @@ import java.text.Collator
 import java.util.Locale
 
 class LauncherRepository(private val context: Context) {
+    private val cache = context.getSharedPreferences(APP_CACHE_NAME, Context.MODE_PRIVATE)
+
+    fun loadCachedApps(): List<LauncherApp> = LauncherPreferencesCodec
+        .decodeMap(cache.getString(CACHED_APPS, null).orEmpty())
+        .mapNotNull { (componentId, label) ->
+            val component = ComponentName.unflattenFromString(componentId)
+                ?: return@mapNotNull null
+            LauncherApp(
+                label = label,
+                componentName = component,
+            )
+        }
+
     suspend fun loadApps(): List<LauncherApp> = withContext(Dispatchers.Default) {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         val packageManager = context.packageManager
@@ -24,7 +38,7 @@ class LauncherRepository(private val context: Context) {
         }
 
         val collator = Collator.getInstance(Locale.getDefault())
-        activities
+        val apps = activities
             .mapNotNull { resolveInfo ->
                 // A single package with invalid resources must not take down the launcher.
                 runCatching {
@@ -39,5 +53,18 @@ class LauncherRepository(private val context: Context) {
             }
             .distinctBy(LauncherApp::id)
             .sortedWith(compareBy(collator) { it.label })
+
+        // Never replace a useful snapshot with a transient empty PackageManager result.
+        if (apps.isNotEmpty()) {
+            cache.edit()
+                .putString(CACHED_APPS, LauncherPreferencesCodec.encodeMap(apps.associate { it.id to it.label }))
+                .apply()
+        }
+        apps
+    }
+
+    private companion object {
+        const val APP_CACHE_NAME = "launcher_app_cache"
+        const val CACHED_APPS = "apps"
     }
 }
