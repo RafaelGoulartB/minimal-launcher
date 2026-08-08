@@ -12,17 +12,23 @@ GRADLE ?= .\gradlew.bat
 JAVA_HOME ?= C:/Program Files/Android/Android Studio/jbr
 ANDROID_HOME ?= $(LOCALAPPDATA)/Android/Sdk
 ADB ?= $(ANDROID_HOME)/platform-tools/adb.exe
+APKSIGNER ?= $(ANDROID_HOME)/build-tools/36.0.0/apksigner.bat
+DEBUG_KEYSTORE ?= $(USERPROFILE)/.android/debug.keystore
 else
 GRADLE ?= ./gradlew
 ADB ?= adb
+APKSIGNER ?= $(ANDROID_HOME)/build-tools/36.0.0/apksigner
+DEBUG_KEYSTORE ?= $(HOME)/.android/debug.keystore
 endif
 
 ANDROID_SDK_ROOT ?= $(ANDROID_HOME)
 export JAVA_HOME ANDROID_HOME ANDROID_SDK_ROOT
 ADB_DEVICE := $(ADB) -s $(DEVICE)
+UNSIGNED_RELEASE_APK := app/build/outputs/apk/release/app-release-unsigned.apk
+SIGNED_RELEASE_APK := app/build/outputs/apk/release/MinimalLauncher-0.1.0-release.apk
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor devices build debug release install run stop uninstall clean check lint unit-test ui-test test bundle apk aab home reset-home logs
+.PHONY: help doctor devices build debug release signed-release install run stop uninstall clean check lint unit-test ui-test test bundle apk aab home reset-home logs
 
 help: ## Show all available commands.
 	@echo Available commands:
@@ -30,6 +36,7 @@ help: ## Show all available commands.
 	@echo   devices        List Android devices and emulators visible to ADB.
 	@echo   build, debug   Build the debug APK.
 	@echo   release        Assemble the release APK.
+	@echo   signed-release Build an installable release APK signed with the local debug key.
 	@echo   install        Install or update the debug APK.
 	@echo   run            Install, then open the app on the selected device.
 	@echo   stop           Stop the app on the selected device.
@@ -60,6 +67,11 @@ debug: ## Assemble the debug APK.
 
 release: ## Assemble the release APK.
 	$(GRADLE) $(MODULE):assembleRelease
+
+signed-release: release ## Build and sign an installable release APK with the local debug key.
+	"$(APKSIGNER)" sign --ks "$(DEBUG_KEYSTORE)" --ks-key-alias androiddebugkey --ks-pass pass:android --key-pass pass:android --out "$(SIGNED_RELEASE_APK)" "$(UNSIGNED_RELEASE_APK)"
+	"$(APKSIGNER)" verify --verbose --print-certs "$(SIGNED_RELEASE_APK)"
+	@echo $(SIGNED_RELEASE_APK)
 
 install: debug ## Install or update the debug APK on the selected device.
 	$(GRADLE) $(MODULE):installDebug
