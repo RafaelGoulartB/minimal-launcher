@@ -314,6 +314,24 @@ class LauncherUiTest {
         }
     }
 
+    @Test
+    fun settingsBackButtonIsAccessibleAndNavigatesBack() {
+        var backRequested = false
+        composeRule.setContent {
+            MinimalLauncherTheme {
+                SettingsPage(
+                    state = LauncherUiState(isLoading = false),
+                    actions = actions(),
+                    onBack = { backRequested = true },
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("Back").performClick()
+
+        composeRule.runOnIdle { assertEquals(true, backRequested) }
+    }
+
     private fun actions() = LauncherActions(
         onToggleHomeItem = {},
         onSearchChange = {},
