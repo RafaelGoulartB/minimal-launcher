@@ -1,6 +1,5 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
@@ -53,4 +52,3 @@ dependencies {
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")
     testImplementation("junit:junit:4.13.2")
 }
-
