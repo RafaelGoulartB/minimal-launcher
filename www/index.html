@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en" class="scroll-smooth">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#09090b" />
+    <title>Minimal Launcher — A quieter Android home screen</title>
+    <meta
+      name="description"
+      content="An open-source, distraction-conscious Android launcher with a text-first home screen, folders, fast app search and local-only preferences."
+    />
+    <meta property="og:title" content="Minimal Launcher" />
+    <meta property="og:description" content="A quieter, text-first Android home screen." />
+    <meta property="og:type" content="website" />
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script>
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              bg: "#09090b",
+              "bg-elev": "#0c0c0e",
+              "bg-card": "#111113",
+              fg: "#fafafa",
+              "fg-muted": "#a1a1aa",
+              "fg-dim": "#71717a",
+              "fg-faint": "#52525b",
+              border: "rgba(255,255,255,0.08)",
+              "border-strong": "rgba(255,255,255,0.14)",
+              accent: "oklch(0.78 0.03 250)",
+              "accent-dim": "oklch(0.78 0.03 250 / 0.14)",
+              ok: "oklch(72% 0.16 150)",
+            },
+            fontFamily: {
+              sans: ['"DM Sans"', "system-ui", "sans-serif"],
+              mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
+            },
+            maxWidth: { container: "1240px" },
+            borderRadius: { tile: "16px" },
+          },
+        },
+      };
+    </script>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body class="bg-bg text-fg font-sans antialiased selection:bg-accent selection:text-bg">
+    <div
+      class="pointer-events-none fixed inset-0 z-[60] mix-blend-overlay opacity-[0.035]"
+      style="background-image: url(&quot;data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.95' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 1 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>&quot;)"
+    ></div>
+
+    <header id="nav" class="sticky top-0 z-50 border-b border-transparent bg-bg/70 backdrop-blur-md transition-colors">
+      <div class="max-w-container mx-auto px-6 lg:px-8 h-16 flex items-center justify-between">
+        <a href="#" class="flex items-center gap-2 group" aria-label="Minimal Launcher home">
+          <span class="w-7 h-7 rounded-md bg-fg flex items-center justify-center text-bg font-bold text-sm">M</span>
+          <span class="font-medium tracking-tight text-[15px]">Minimal Launcher</span>
+        </a>
+        <nav class="hidden md:flex items-center gap-8 text-sm text-fg-muted" aria-label="Primary navigation">
+          <a href="#home" class="hover:text-fg transition-colors">Home</a>
+          <a href="#drawer" class="hover:text-fg transition-colors">App drawer</a>
+          <a href="#customize" class="hover:text-fg transition-colors">Customize</a>
+          <a href="#opensource" class="hover:text-fg transition-colors">Open source</a>
+        </nav>
+        <div class="flex items-center gap-2">
+          <a href="#download" class="hidden sm:inline-flex items-center gap-2 px-3.5 h-9 rounded-md text-sm font-medium bg-fg text-bg hover:-translate-y-px transition-transform">
+            Download
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M7 17L17 7M9 7h8v8" /></svg>
+          </a>
+          <a
+            href="https://github.com/RafaelGoulartB/minimal-launcher"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center gap-2 px-3 h-9 rounded-md text-sm border border-border hover:border-border-strong transition-colors font-mono"
+            aria-label="View repository on GitHub"
+          >
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5C5.65.5.5 5.65.5 12c0 5.08 3.29 9.39 7.86 10.92.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.36-3.88-1.36-.52-1.33-1.27-1.69-1.27-1.69-1.04-.71.08-.7.08-.7 1.15.08 1.76 1.18 1.76 1.18 1.02 1.76 2.69 1.25 3.34.96.1-.74.4-1.25.72-1.54-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.18-3.08-.12-.29-.51-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 015.78 0c2.2-1.49 3.17-1.18 3.17-1.18.62 1.58.23 2.75.11 3.04.74.8 1.18 1.82 1.18 3.08 0 4.42-2.7 5.39-5.27 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.55C20.21 21.39 23.5 17.07 23.5 12 23.5 5.65 18.35.5 12 .5z" /></svg>
+            <span class="hidden sm:inline" id="starCount">★ 0</span>
+            <span class="sm:hidden" id="starCountMobile">0</span>
+          </a>
+          <button id="menuBtn" class="md:hidden w-9 h-9 inline-flex items-center justify-center rounded-md border border-border" aria-label="Open menu">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+          </button>
+        </div>
+      </div>
+      <div id="mobileMenu" class="md:hidden hidden border-t border-border bg-bg-elev">
+        <div class="px-6 py-4 flex flex-col gap-3 text-sm text-fg-muted">
+          <a href="#home" class="py-1.5">Home</a>
+          <a href="#drawer" class="py-1.5">App drawer</a>
+          <a href="#customize" class="py-1.5">Customize</a>
+          <a href="#opensource" class="py-1.5">Open source</a>
+          <a href="#download" class="mt-2 inline-flex items-center justify-center h-10 rounded-md bg-fg text-bg font-medium">Download app</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="relative overflow-hidden">
+        <div
+          class="pointer-events-none absolute inset-0 opacity-[0.35]"
+          style="background-image: linear-gradient(to right, rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.04) 1px, transparent 1px); background-size: 48px 48px; mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 30%, transparent 75%)"
+        ></div>
+        <div class="relative max-w-container mx-auto px-6 lg:px-8 pt-24 pb-24">
+          <div class="text-center max-w-3xl mx-auto fade-in">
+            <div class="inline-flex items-center gap-2 px-3 h-7 rounded-full border border-border bg-bg-card/60 backdrop-blur font-mono text-[11px] uppercase tracking-[0.14em] text-fg-dim">
+              <span class="w-1.5 h-1.5 rounded-full bg-accent"></span>
+              v0.1 — Kotlin, Android only
+            </div>
+            <h1 class="mt-8 text-5xl sm:text-6xl md:text-7xl font-medium leading-[1.05] tracking-[-0.035em]">
+              Your home screen,
+              <span class="text-transparent" style="background: linear-gradient(180deg, #fafafa 0%, #fafafa 50%, #71717a 100%); -webkit-background-clip: text; background-clip: text">without the noise.</span>
+            </h1>
+            <p class="mt-6 text-fg-muted text-lg leading-relaxed max-w-2xl mx-auto">
+              A fast, text-first Android launcher that keeps favorite apps close and everything else one swipe away. No ads, no account and no internet permission.
+            </p>
+            <div class="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
+              <a href="#download" class="inline-flex items-center gap-2 h-11 px-5 rounded-lg bg-fg text-bg font-medium hover:-translate-y-px transition-transform">
+                Download for Android
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7" /></svg>
+              </a>
+              <a href="https://github.com/RafaelGoulartB/minimal-launcher" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 h-11 px-5 rounded-lg border border-border hover:border-border-strong hover:bg-bg-card/40 transition-colors">View on GitHub</a>
+            </div>
+            <p class="mt-5 font-mono text-[11px] uppercase tracking-[0.14em] text-fg-faint">Android 8.0+ · local preferences · zero telemetry</p>
+          </div>
+
+          <div class="relative mt-20 mx-auto max-w-3xl h-[640px] sm:h-[680px]" style="perspective: 1400px">
+            <div class="phone-frame absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[260px] sm:w-[290px] tilt">
+              <img src="assets/screenshots/polish-home.png" alt="Minimal Launcher home screen with clock, date, battery, usage and favorite apps" class="w-full h-auto" loading="eager" decoding="async" />
+            </div>
+            <div class="float-tile absolute -left-6 top-14 sm:-left-12 sm:top-16 w-24 h-24 rounded-3xl border border-border bg-bg-elev/80 backdrop-blur flex items-center justify-center font-mono text-lg" style="background: radial-gradient(circle at 30% 25%, rgba(255,255,255,.12), #14141a 65%)">12:47</div>
+            <div class="float-tile absolute -right-4 top-8 sm:-right-10 w-24 h-24 rounded-3xl border border-border bg-bg-elev/80 backdrop-blur flex items-center justify-center font-mono text-lg" style="animation-delay: 1.4s; background: radial-gradient(circle at 70% 30%, rgba(120,140,180,.16), #14141a 65%)">A → Z</div>
+            <div class="float-tile absolute left-10 -bottom-6 sm:left-20 sm:-bottom-10 w-24 h-24 rounded-3xl border border-border bg-bg-elev/80 backdrop-blur flex items-center justify-center font-mono text-lg" style="animation-delay: 2.8s; background: radial-gradient(circle at 50% 30%, rgba(255,255,255,.1), #14141a 65%)">0m</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="border-t border-border">
+        <div class="max-w-container mx-auto px-6 lg:px-8 py-12 grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div class="text-center"><div class="font-mono text-sm text-fg">Kotlin</div><div class="mt-1 text-xs text-fg-dim">native Android</div></div>
+          <div class="text-center"><div class="font-mono text-sm text-fg">Compose</div><div class="mt-1 text-xs text-fg-dim">declarative UI</div></div>
+          <div class="text-center"><div class="font-mono text-sm text-fg">API 26+</div><div class="mt-1 text-xs text-fg-dim">Android 8.0+</div></div>
+          <div class="text-center"><div class="font-mono text-sm text-fg">0 network</div><div class="mt-1 text-xs text-fg-dim">permissions</div></div>
+        </div>
+      </section>
+
+      <section id="home" class="border-t border-border">
+        <div class="max-w-container mx-auto px-6 lg:px-8 py-24 grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-16 items-center">
+          <div>
+            <span class="font-mono text-[11px] uppercase tracking-[0.14em] text-fg-dim">Focused home</span>
+            <h2 class="mt-4 text-4xl md:text-5xl font-medium leading-[1.05] tracking-[-0.035em]">Only what earns a place.</h2>
+            <p class="mt-5 text-fg-muted leading-relaxed">Build a calm home screen around text, not attention-grabbing icon grids. Add only the apps and folders you want, then arrange them in the order that works for you.</p>
+            <ul class="mt-7 space-y-3 text-fg-muted">
+              <li class="flex gap-3"><span class="text-accent">✓</span> Configurable clock, date, battery and daily usage</li>
+              <li class="flex gap-3"><span class="text-accent">✓</span> Favorite apps and folders in one ordered list</li>
+              <li class="flex gap-3"><span class="text-accent">✓</span> Long-press and drag to reorder Home items</li>
+              <li class="flex gap-3"><span class="text-accent">✓</span> Five accent colors, three fonts and three text sizes</li>
+            </ul>
+          </div>
+          <div class="relative flex justify-center" style="perspective: 1400px">
+            <div class="phone-frame relative tilt w-[240px] sm:w-[280px]"><img src="assets/screenshots/polish-home.png" alt="Text-first Minimal Launcher home screen" class="w-full h-auto" loading="lazy" decoding="async" /></div>
+            <div class="hidden sm:flex absolute -left-4 top-1/3 items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-bg-elev/80 backdrop-blur font-mono text-[11px] text-fg-muted"><span class="w-1.5 h-1.5 rounded-full bg-accent"></span>favorites only</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="drawer" class="border-t border-border">
+        <div class="max-w-container mx-auto px-6 lg:px-8 py-24 grid lg:grid-cols-[1fr_1.1fr] gap-12 lg:gap-16 items-center">
+          <div class="relative flex justify-center order-2 lg:order-1" style="perspective: 1400px">
+            <div class="phone-frame relative tilt w-[240px] sm:w-[280px]"><img src="assets/screenshots/polish-apps.png" alt="Searchable app drawer with alphabet rail and folders" class="w-full h-auto" loading="lazy" decoding="async" /></div>
+            <div class="hidden sm:flex absolute -right-5 top-1/4 items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-bg-elev/80 backdrop-blur font-mono text-[11px] text-fg-muted">instant search</div>
+          </div>
+          <div class="order-1 lg:order-2">
+            <span class="font-mono text-[11px] uppercase tracking-[0.14em] text-fg-dim">App drawer</span>
+            <h2 class="mt-4 text-4xl md:text-5xl font-medium leading-[1.05] tracking-[-0.035em]">Every app. Zero hunting.</h2>
+            <p class="mt-5 text-fg-muted leading-relaxed">Swipe left for the complete app list. Search immediately, scrub the alphabet rail or expand folders inline without leaving the drawer.</p>
+            <div class="mt-7 grid grid-cols-2 gap-3 text-sm">
+              <div class="tile rounded-lg border border-border p-3"><div class="font-mono text-[11px] text-fg-dim uppercase">Search</div><div class="mt-1 text-fg">Optional auto-focus</div></div>
+              <div class="tile rounded-lg border border-border p-3"><div class="font-mono text-[11px] text-fg-dim uppercase">Alphabet</div><div class="mt-1 text-fg">Fast scrubber</div></div>
+              <div class="tile rounded-lg border border-border p-3"><div class="font-mono text-[11px] text-fg-dim uppercase">Folders</div><div class="mt-1 text-fg">Inline expansion</div></div>
+              <div class="tile rounded-lg border border-border p-3"><div class="font-mono text-[11px] text-fg-dim uppercase">Actions</div><div class="mt-1 text-fg">Long-press menu</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="customize" class="border-t border-border">
+        <div class="max-w-container mx-auto px-6 lg:px-8 py-24 grid lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-16 items-center">
+          <div>
+            <span class="font-mono text-[11px] uppercase tracking-[0.14em] text-fg-dim">Control without clutter</span>
+            <h2 class="mt-4 text-4xl md:text-5xl font-medium leading-[1.05] tracking-[-0.035em]">Make the launcher yours.</h2>
+            <p class="mt-5 text-fg-muted leading-relaxed">Rename apps, create folders, hide distractions or block an app from opening inside the launcher. Restore every choice later from one settings screen.</p>
+            <div class="mt-7 grid sm:grid-cols-2 gap-3">
+              <div class="tile rounded-tile border border-border p-4"><div class="font-medium">Appearance</div><p class="mt-2 text-sm text-fg-muted">Clock format, font, size, accent and Home details.</p></div>
+              <div class="tile rounded-tile border border-border p-4"><div class="font-medium">App management</div><p class="mt-2 text-sm text-fg-muted">Rename, hide, block, uninstall or open Android app info.</p></div>
+              <div class="tile rounded-tile border border-border p-4"><div class="font-medium">Folders</div><p class="mt-2 text-sm text-fg-muted">Create, rename, fill and place them on Home.</p></div>
+              <div class="tile rounded-tile border border-border p-4"><div class="font-medium">Usage summary</div><p class="mt-2 text-sm text-fg-muted">Optional daily screen time using Android Usage Access.</p></div>
+            </div>
+          </div>
+          <div class="relative flex justify-center" style="perspective: 1400px">
+            <div class="phone-frame relative tilt w-[240px] sm:w-[280px]"><img src="assets/screenshots/settings.png" alt="Minimal Launcher settings for appearance, usage and app management" class="w-full h-auto" loading="lazy" decoding="async" /></div>
+            <div class="hidden sm:flex absolute -right-7 bottom-16 items-center gap-2 px-3 py-1.5 rounded-md border border-border bg-bg-elev/80 backdrop-blur font-mono text-[11px] text-fg-muted">your defaults</div>
+          </div>
+        </div>
+      </section>
+
+      <section id="opensource" class="border-t border-border">
+        <div class="max-w-container mx-auto px-6 lg:px-8 py-24 grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          <div class="tile rounded-tile border border-border bg-bg-card/60 overflow-hidden">
+            <div class="flex items-center justify-between px-5 py-3 border-b border-border bg-bg-elev">
+              <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-[#ff5f57]"></span><span class="w-2.5 h-2.5 rounded-full bg-[#febc2e]"></span><span class="w-2.5 h-2.5 rounded-full bg-[#28c840]"></span></div>
+              <span class="font-mono text-[11px] text-fg-dim uppercase tracking-[0.14em]">local-only</span>
+              <span class="font-mono text-[11px] text-fg-faint">~/launcher</span>
+            </div>
+            <div class="p-5 font-mono text-sm space-y-2 overflow-x-auto">
+              <div class="flex gap-3"><span class="text-accent">$</span><span class="text-fg">aapt dump permissions minimal-launcher.apk</span></div>
+              <div class="ml-5 text-fg-dim">uses-permission: PACKAGE_USAGE_STATS</div>
+              <div class="flex gap-3"><span class="text-accent">$</span><span class="text-fg">grep INTERNET app/src/main/AndroidManifest.xml</span></div>
+              <div class="flex gap-3"><span class="text-ok">✓</span><span class="text-fg-muted">No internet permission. No analytics. No account.</span></div>
+              <div class="flex gap-3"><span class="text-accent">$</span><span class="text-fg">./gradlew testDebugUnitTest<span class="caret-blink">_</span></span></div>
+            </div>
+          </div>
+          <div>
+            <span class="font-mono text-[11px] uppercase tracking-[0.14em] text-fg-dim">Open source · privacy first</span>
+            <h2 class="mt-4 text-4xl md:text-5xl font-medium leading-[1.05] tracking-[-0.035em]">Your choices stay on your device.</h2>
+            <p class="mt-5 text-fg-muted leading-relaxed">Launcher preferences live in Android DataStore. There is no hosted service, telemetry SDK or network permission. Usage Access is optional and only calculates today's foreground-app time locally.</p>
+            <div class="mt-6 flex flex-wrap gap-2 font-mono text-[11px]">
+              <span class="px-2.5 py-1 rounded-full border border-border text-fg-muted">Kotlin</span>
+              <span class="px-2.5 py-1 rounded-full border border-border text-fg-muted">Jetpack Compose</span>
+              <span class="px-2.5 py-1 rounded-full border border-border text-fg-muted">Material 3</span>
+              <span class="px-2.5 py-1 rounded-full border border-border text-fg-muted">DataStore</span>
+              <span class="px-2.5 py-1 rounded-full border border-border text-fg-muted">JUnit 4</span>
+            </div>
+            <a href="https://github.com/RafaelGoulartB/minimal-launcher" target="_blank" rel="noopener noreferrer" class="mt-7 inline-flex items-center gap-2 h-10 px-4 rounded-md border border-border hover:border-border-strong transition-colors text-sm">Explore the code →</a>
+          </div>
+        </div>
+      </section>
+
+      <section id="download" class="border-t border-border relative overflow-hidden">
+        <div class="pointer-events-none absolute inset-0" style="background: radial-gradient(500px 400px at 50% 100%, rgba(255,255,255,.08), transparent 70%)"></div>
+        <div class="relative max-w-container mx-auto px-6 lg:px-8 py-28 text-center">
+          <h2 class="text-4xl md:text-6xl font-medium leading-[1.05] tracking-[-0.035em] max-w-3xl mx-auto">Make Android feel <span class="text-transparent" style="background: linear-gradient(180deg, #fafafa 30%, #71717a 100%); -webkit-background-clip: text; background-clip: text">quiet again.</span></h2>
+          <p class="mt-5 text-fg-muted max-w-xl mx-auto">Grab the latest APK or build it from source. No account, no ads and no telemetry.</p>
+          <div class="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <a href="https://github.com/RafaelGoulartB/minimal-launcher/releases/latest" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 h-11 px-5 rounded-lg bg-fg text-bg font-medium hover:-translate-y-px transition-transform">Download APK ↓</a>
+            <a href="https://github.com/RafaelGoulartB/minimal-launcher#readme" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 h-11 px-5 rounded-lg border border-border hover:border-border-strong transition-colors">Installation guide</a>
+            <a href="https://github.com/RafaelGoulartB/minimal-launcher" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 h-11 px-5 rounded-lg border border-border hover:border-border-strong transition-colors font-mono text-sm">$ git clone</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="border-t border-border">
+      <div class="max-w-container mx-auto px-6 lg:px-8 py-14 grid sm:grid-cols-2 lg:grid-cols-4 gap-10">
+        <div class="lg:col-span-2">
+          <div class="flex items-center gap-2"><span class="w-7 h-7 rounded-md bg-fg flex items-center justify-center text-bg font-bold text-sm">M</span><span class="font-medium tracking-tight text-[15px]">Minimal Launcher</span></div>
+          <p class="mt-3 text-sm text-fg-muted max-w-xs">A distraction-conscious Android home screen built with Kotlin and Jetpack Compose.</p>
+        </div>
+        <div>
+          <div class="font-mono text-[11px] uppercase tracking-[0.14em] text-fg-dim">Product</div>
+          <ul class="mt-3 space-y-2 text-sm text-fg-muted"><li><a href="#home" class="hover:text-fg">Home</a></li><li><a href="#drawer" class="hover:text-fg">App drawer</a></li><li><a href="#customize" class="hover:text-fg">Customize</a></li><li><a href="#download" class="hover:text-fg">Download</a></li></ul>
+        </div>
+        <div>
+          <div class="font-mono text-[11px] uppercase tracking-[0.14em] text-fg-dim">Project</div>
+          <ul class="mt-3 space-y-2 text-sm text-fg-muted"><li><a href="https://github.com/RafaelGoulartB/minimal-launcher" class="hover:text-fg">GitHub</a></li><li><a href="https://github.com/RafaelGoulartB/minimal-launcher/issues" class="hover:text-fg">Issues</a></li><li><a href="https://github.com/RafaelGoulartB/minimal-launcher/actions" class="hover:text-fg">Builds</a></li><li><a href="https://github.com/RafaelGoulartB/minimal-launcher/releases" class="hover:text-fg">Releases</a></li></ul>
+        </div>
+      </div>
+      <div class="max-w-container mx-auto px-6 lg:px-8 py-6 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-fg-dim">
+        <div class="font-mono">© 2026 Minimal Launcher · built with Kotlin</div>
+        <div class="flex items-center gap-1.5 font-mono"><span class="w-1.5 h-1.5 rounded-full bg-accent"></span>status: focused</div>
+      </div>
+    </footer>
+
+    <script src="script.js" defer></script>
+  </body>
+</html>
