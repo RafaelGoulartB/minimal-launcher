@@ -8,6 +8,7 @@ import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.rafael.minimallauncher.ui.LauncherScreen
+import com.rafael.minimallauncher.ui.LauncherActions
 import com.rafael.minimallauncher.ui.LauncherViewModel
 import com.rafael.minimallauncher.ui.MinimalLauncherTheme
 
@@ -22,8 +23,23 @@ class MainActivity : ComponentActivity() {
                 val state by launcherViewModel.uiState.collectAsStateWithLifecycle()
                 LauncherScreen(
                     state = state,
-                    onSearchChange = launcherViewModel::setSearchQuery,
-                    onToggleFavorite = launcherViewModel::toggleFavorite,
+                    actions = LauncherActions(
+                        onSearchChange = launcherViewModel::setSearchQuery,
+                        onAddHomeItem = launcherViewModel::addHomeItem,
+                        onRemoveHomeItem = launcherViewModel::removeHomeItem,
+                        onMoveHomeItem = launcherViewModel::moveHomeItem,
+                        onRenameApp = launcherViewModel::renameApp,
+                        onSetAppHidden = launcherViewModel::setAppHidden,
+                        onSetAppBlocked = launcherViewModel::setAppBlocked,
+                        onCreateFolder = launcherViewModel::createFolder,
+                        onRenameFolder = launcherViewModel::renameFolder,
+                        onDeleteFolder = launcherViewModel::deleteFolder,
+                        onMoveAppToFolder = launcherViewModel::moveAppToFolder,
+                        onClockFormatChange = launcherViewModel::updateClockFormat,
+                        onShowDateChange = launcherViewModel::setShowDate,
+                        onShowBatteryChange = launcherViewModel::setShowBattery,
+                        onShowDailyUsageChange = launcherViewModel::setShowDailyUsage,
+                    ),
                 )
             }
         }

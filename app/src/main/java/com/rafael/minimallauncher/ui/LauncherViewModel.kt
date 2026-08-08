@@ -4,8 +4,11 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.rafael.minimallauncher.data.ClockFormat
+import com.rafael.minimallauncher.data.AppItem
+import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.HomeItemRef
 import com.rafael.minimallauncher.data.LauncherApp
+import com.rafael.minimallauncher.data.LauncherItem
 import com.rafael.minimallauncher.data.LauncherPreferences
 import com.rafael.minimallauncher.data.LauncherPreferencesRepository
 import com.rafael.minimallauncher.data.LauncherRepository
@@ -18,12 +21,18 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
+import java.text.Collator
+import java.util.Locale
 
 data class LauncherUiState(
     val apps: List<LauncherApp> = emptyList(),
     val filteredApps: List<LauncherApp> = emptyList(),
     val favoriteApps: List<LauncherApp> = emptyList(),
     val favoriteIds: Set<String> = emptySet(),
+    val favoriteFolderIds: Set<String> = emptySet(),
+    val drawerItems: List<LauncherItem> = emptyList(),
+    val homeItems: List<LauncherItem> = emptyList(),
+    val folders: List<FolderItem> = emptyList(),
     val preferences: LauncherPreferences = LauncherPreferences(),
     val searchQuery: String = "",
     val isLoading: Boolean = true,
@@ -40,8 +49,40 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         preferencesRepository.preferences,
         searchQuery.debounce(120),
     ) { installedApps, preferences, query ->
+        val collator = Collator.getInstance(Locale.getDefault())
+        val itemComparator = Comparator<LauncherItem> { first, second -> collator.compare(first.label, second.label) }
         val favoriteIds = preferences.homeItems.filterIsInstance<HomeItemRef.App>().mapTo(mutableSetOf()) { it.value }
+        val favoriteFolderIds = preferences.homeItems.filterIsInstance<HomeItemRef.Folder>().mapTo(mutableSetOf()) { it.value }
         val appsById = installedApps.associateBy(LauncherApp::id)
+        val visibleAppItems = installedApps
+            .filterNot { it.id in preferences.hiddenAppIds }
+            .associate { app -> app.id to AppItem(app, preferences.customNames[app.id] ?: app.label) }
+        val folderItems = preferences.folders.associate { folder ->
+            folder.id to FolderItem(
+                folder = folder,
+                apps = preferences.appFolders
+                    .filterValues { it == folder.id }
+                    .keys
+                    .mapNotNull(visibleAppItems::get)
+                    .sortedWith(compareBy(collator) { it.label }),
+            )
+        }
+        val assignedAppIds = preferences.appFolders.filterValues(folderItems::containsKey).keys
+        val topLevelItems = (visibleAppItems.values.filterNot { it.id in assignedAppIds } + folderItems.values)
+            .sortedWith(itemComparator)
+        val drawerItems = if (query.isBlank()) {
+            topLevelItems
+        } else {
+            (visibleAppItems.values.filter { it.label.contains(query, ignoreCase = true) } +
+                folderItems.values.filter { it.label.contains(query, ignoreCase = true) })
+                .sortedWith(itemComparator)
+        }
+        val homeItems = preferences.homeItems.mapNotNull { item ->
+            when (item) {
+                is HomeItemRef.App -> visibleAppItems[item.value]
+                is HomeItemRef.Folder -> folderItems[item.value]
+            }
+        }
         val favoriteApps = preferences.homeItems.mapNotNull { item ->
             (item as? HomeItemRef.App)?.value?.let(appsById::get)
         }.filterNot { it.id in preferences.hiddenAppIds }
@@ -53,6 +94,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             }.sortedBy { preferences.customNames[it.id] ?: it.label },
             favoriteApps = favoriteApps,
             favoriteIds = favoriteIds,
+            favoriteFolderIds = favoriteFolderIds,
+            drawerItems = drawerItems,
+            homeItems = homeItems,
+            folders = folderItems.values.sortedWith(compareBy(collator) { it.label }),
             preferences = preferences,
             searchQuery = query,
             isLoading = false,

@@ -1,0 +1,219 @@
+package com.rafael.minimallauncher.ui
+
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
+import android.os.Build
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.rafael.minimallauncher.data.AppItem
+import com.rafael.minimallauncher.data.FolderItem
+import com.rafael.minimallauncher.data.HomeItemRef
+import com.rafael.minimallauncher.data.LauncherItem
+import kotlinx.coroutines.delay
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
+
+@Composable
+internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
+    val context = LocalContext.current
+    var openedFolder by remember { mutableStateOf<FolderItem?>(null) }
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp)) {
+        ClockHeader()
+        Spacer(Modifier.height(46.dp))
+        when {
+            state.isLoading -> Text("Loading apps…", color = Color.Gray)
+            state.homeItems.isEmpty() -> Text("Swipe left to add apps to Home.", color = Color.Gray, fontSize = 18.sp)
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                items(state.homeItems, key = LauncherItem::id) { item ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().height(64.dp).clickable {
+                            when (item) {
+                                is AppItem -> openApp(context, item, state.preferences.blockedAppIds)
+                                is FolderItem -> openedFolder = item
+                            }
+                        },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            item.label,
+                            modifier = Modifier.weight(1f),
+                            color = Color.White,
+                            fontSize = 26.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        TextButton(
+                            onClick = {
+                                val ref = when (item) {
+                                    is AppItem -> HomeItemRef.App(item.id)
+                                    is FolderItem -> HomeItemRef.Folder(item.id)
+                                }
+                                actions.onRemoveHomeItem(ref)
+                            },
+                            colors = ButtonDefaults.textButtonColors(contentColor = Color.LightGray),
+                        ) { Text("Remove") }
+                    }
+                }
+            }
+        }
+    }
+    openedFolder?.let { folder ->
+        FolderContentsSheet(
+            folder = folder,
+            blockedIds = state.preferences.blockedAppIds,
+            onDismiss = { openedFolder = null },
+            onLongClickApp = {},
+        )
+    }
+}
+
+@Composable
+private fun ClockHeader() {
+    var now by remember { mutableStateOf(LocalDateTime.now()) }
+    val batteryPercentage = rememberBatteryPercentage()
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = LocalDateTime.now()
+            delay(60_000 - (System.currentTimeMillis() % 60_000))
+        }
+    }
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 78.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(now.format(DateTimeFormatter.ofPattern("HH:mm")), color = Color.White, fontSize = 58.sp, fontWeight = FontWeight.Normal)
+        Text(
+            now.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(Locale.getDefault())),
+            color = Color.LightGray,
+            fontSize = 18.sp,
+        )
+        Spacer(Modifier.height(8.dp))
+        BatteryIndicator(batteryPercentage)
+    }
+}
+
+@Composable
+private fun BatteryIndicator(percentage: Int?) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(percentage?.let { "$it%" } ?: "--%", color = Color.LightGray, fontSize = 16.sp)
+        Canvas(modifier = Modifier.width(50.dp).height(23.dp)) {
+            val strokeWidth = 2.5.dp.toPx()
+            val tipWidth = 4.dp.toPx()
+            val bodyWidth = size.width - tipWidth
+            val inset = strokeWidth / 2
+            val fillInset = 5.dp.toPx()
+            val fillWidth = (bodyWidth - fillInset * 2) * ((percentage ?: 0) / 100f)
+            drawRoundRect(
+                Color.White,
+                androidx.compose.ui.geometry.Offset(inset, inset),
+                androidx.compose.ui.geometry.Size(bodyWidth - strokeWidth, size.height - strokeWidth),
+                androidx.compose.ui.geometry.CornerRadius(7.dp.toPx()),
+                style = Stroke(strokeWidth),
+            )
+            if (fillWidth > 0f) {
+                drawRoundRect(
+                    Color.White,
+                    androidx.compose.ui.geometry.Offset(fillInset, fillInset),
+                    androidx.compose.ui.geometry.Size(fillWidth, size.height - fillInset * 2),
+                    androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()),
+                )
+            }
+            drawRoundRect(
+                Color.White,
+                androidx.compose.ui.geometry.Offset(bodyWidth - inset, size.height * 0.3f),
+                androidx.compose.ui.geometry.Size(tipWidth, size.height * 0.4f),
+                androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+            )
+        }
+    }
+}
+
+@Composable
+private fun rememberBatteryPercentage(): Int? {
+    val context = LocalContext.current.applicationContext
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var percentage by remember { mutableStateOf<Int?>(null) }
+    DisposableEffect(context, lifecycleOwner) {
+        var registered = false
+        val filter = IntentFilter(Intent.ACTION_BATTERY_CHANGED)
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+                percentage = if (level >= 0 && scale > 0) (level * 100f / scale).toInt().coerceIn(0, 100) else null
+            }
+        }
+        fun register() {
+            if (registered) return
+            val sticky = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                context.registerReceiver(receiver, filter)
+            }
+            sticky?.let { receiver.onReceive(context, it) }
+            registered = true
+        }
+        fun unregister() {
+            if (registered) context.unregisterReceiver(receiver)
+            registered = false
+        }
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> register()
+                Lifecycle.Event.ON_STOP -> unregister()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) register()
+        onDispose {
+            unregister()
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    return percentage
+}
