@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -293,8 +294,9 @@ private fun ClockHeader(settings: LauncherSettings) {
         if (settings.showDate) {
             Text(
                 now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale)),
+                modifier = Modifier.offset(y = (-4).dp),
                 color = Color.LightGray,
-                fontSize = 18.sp,
+                fontSize = 16.sp,
             )
         }
         if (settings.showBattery) {
@@ -348,20 +350,20 @@ private fun RefreshUsageWhileVisible(onRefresh: () -> Unit) {
 
 @Composable
 private fun BatteryIndicator(percentage: Int?) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(percentage?.let { "$it%" } ?: "--%", color = Color.LightGray, fontSize = 16.sp)
-        Canvas(modifier = Modifier.width(42.dp).height(19.dp)) {
-            val strokeWidth = 2.2.dp.toPx()
-            val tipWidth = 3.5.dp.toPx()
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(percentage?.let { "$it%" } ?: "--%", color = Color.LightGray, fontSize = 14.sp)
+        Canvas(modifier = Modifier.width(30.dp).height(14.dp)) {
+            val strokeWidth = 1.8.dp.toPx()
+            val tipWidth = 2.5.dp.toPx()
             val bodyWidth = size.width - tipWidth
             val inset = strokeWidth / 2
-            val fillInset = 4.dp.toPx()
+            val fillInset = 3.dp.toPx()
             val fillWidth = (bodyWidth - fillInset * 2) * ((percentage ?: 0) / 100f)
             drawRoundRect(
                 Color.White,
                 androidx.compose.ui.geometry.Offset(inset, inset),
                 androidx.compose.ui.geometry.Size(bodyWidth - strokeWidth, size.height - strokeWidth),
-                androidx.compose.ui.geometry.CornerRadius(6.dp.toPx()),
+                androidx.compose.ui.geometry.CornerRadius(4.dp.toPx()),
                 style = Stroke(strokeWidth),
             )
             if (fillWidth > 0f) {
@@ -369,14 +371,14 @@ private fun BatteryIndicator(percentage: Int?) {
                     Color.White,
                     androidx.compose.ui.geometry.Offset(fillInset, fillInset),
                     androidx.compose.ui.geometry.Size(fillWidth, size.height - fillInset * 2),
-                    androidx.compose.ui.geometry.CornerRadius(3.dp.toPx()),
+                    androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
                 )
             }
             drawRoundRect(
                 Color.White,
                 androidx.compose.ui.geometry.Offset(bodyWidth - inset, size.height * 0.3f),
                 androidx.compose.ui.geometry.Size(tipWidth, size.height * 0.4f),
-                androidx.compose.ui.geometry.CornerRadius(2.dp.toPx()),
+                androidx.compose.ui.geometry.CornerRadius(1.5.dp.toPx()),
             )
         }
     }
