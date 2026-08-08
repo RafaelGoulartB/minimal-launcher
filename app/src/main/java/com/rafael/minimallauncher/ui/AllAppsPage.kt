@@ -389,7 +389,7 @@ internal fun AllAppsPage(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(60.dp)
+                            .height(44.dp)
                             .padding(start = if (row.isFolderChild) 26.dp else 0.dp)
                             .combinedClickable(
                                 onClick = {
@@ -635,7 +635,7 @@ private fun ManagementSheet(title: String, onDismiss: () -> Unit, content: @Comp
 private fun ManagementAction(label: String, onClick: () -> Unit) {
     Text(
         label,
-        modifier = Modifier.fillMaxWidth().height(58.dp).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().height(44.dp).clickable(onClick = onClick).padding(horizontal = 20.dp, vertical = 8.dp),
         color = Color.White,
         fontSize = 19.sp,
     )

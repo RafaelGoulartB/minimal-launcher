@@ -114,13 +114,13 @@ internal fun HomePage(state: LauncherUiState, actions: LauncherActions) {
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = 28.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
                 items(displayedItems, key = LauncherItem::id) { item ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(56.dp)
+                            .height(44.dp)
                             .zIndex(if (draggedItemId == item.id) 1f else 0f)
                             .graphicsLayer { translationY = if (draggedItemId == item.id) dragOffset else 0f }
                             .background(if (draggedItemId == item.id) Color(0xFF161616) else Color.Transparent)
