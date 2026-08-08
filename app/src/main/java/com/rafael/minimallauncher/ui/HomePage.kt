@@ -300,7 +300,7 @@ private fun ClockHeader(settings: LauncherSettings) {
             )
         }
         if (settings.showBattery) {
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(2.dp))
             BatteryIndicator(batteryPercentage)
         }
     }
