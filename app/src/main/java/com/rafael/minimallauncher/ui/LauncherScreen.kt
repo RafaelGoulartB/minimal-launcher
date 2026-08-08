@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -79,21 +81,30 @@ private fun HomePage(state: LauncherUiState, onToggleFavorite: (LauncherApp) -> 
         modifier = Modifier.fillMaxSize().padding(horizontal = 32.dp),
     ) {
         ClockHeader()
-        Spacer(Modifier.height(46.dp))
-        if (state.isLoading) {
-            Text("Loading apps…", color = Color.Gray)
-        } else if (state.favoriteApps.isEmpty()) {
-            Text(
-                "Swipe left to add apps to Home.",
-                color = Color.Gray,
-                fontSize = 18.sp,
-            )
-        } else {
-            AppList(
-                apps = state.favoriteApps,
-                favoriteIds = state.favoriteIds,
-                onToggleFavorite = onToggleFavorite,
-            )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (state.isLoading) {
+                Text("Loading apps…", color = Color.Gray)
+            } else if (state.favoriteApps.isEmpty()) {
+                Text(
+                    "Swipe left to add apps to Home.",
+                    color = Color.Gray,
+                    fontSize = 18.sp,
+                )
+            } else {
+                AppList(
+                    apps = state.favoriteApps,
+                    favoriteIds = state.favoriteIds,
+                    onToggleFavorite = onToggleFavorite,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 560.dp),
+                )
+            }
         }
     }
 }
@@ -129,10 +140,11 @@ private fun AppList(
     apps: List<LauncherApp>,
     favoriteIds: Set<String>,
     onToggleFavorite: (LauncherApp) -> Unit,
+    modifier: Modifier = Modifier.fillMaxSize(),
 ) {
     val context = LocalContext.current
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = modifier,
         contentPadding = PaddingValues(bottom = 28.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
