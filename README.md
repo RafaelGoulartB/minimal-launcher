@@ -1,94 +1,87 @@
 # Minimal Launcher
 
-A fast, text-first Android launcher with a deliberately quiet interface. It uses a black theme, large readable app names, and no icons in the initial app list.
+Minimal Launcher is a distraction-conscious Android home screen built with Kotlin and Jetpack Compose. It uses a simple text-first interface, keeps favorite apps close, and puts the complete app list one swipe away.
 
 ## Features
 
-- Home screen with a live clock and date
-- Swipe left to browse every launchable app
-- Search apps by name
-- Reorder Home favorites with long-press and drag
-- Contextual app management with rename, hide, block, folders, uninstall, and app info
+- Minimal dark home screen with configurable clock, date, battery, and daily usage display
+- Searchable app drawer with optional automatic search focus
 - Alphabet index for fast navigation through the app drawer
-- Configurable clock, date, battery, and daily usage summary
-- Persistent favorites and launcher preferences, stored locally on-device
-- Automatic refresh when returning to the launcher after installing or removing an app
-- No background service, analytics, or extra runtime permissions
+- Favorites and folders that can be reordered on the Home screen
+- App renaming, hiding, blocking, uninstall shortcuts, and system app-info access
+- Persistent preferences backed by Android DataStore
+- Optional usage-stat access for today's screen-time summary
+- Automatic app-list refresh after installing or removing an app
 
 ## Requirements
 
-- Android 8.0 (API 26) or newer
-- JDK 17
-- Android SDK with API 37 installed
+- Android Studio with its bundled JDK, or JDK 17
+- Android SDK 37
+- Android 8.0 (API 26) or newer device/emulator
+- ADB for installation and device-based tests
 
-## Build and install
+## Build and Run
 
-Open the project in the latest Android Studio, let Gradle sync, then run the `app` configuration on a connected device or emulator.
-
-From a terminal with Gradle available:
+Clone the repository, then build a debug APK with the Gradle wrapper:
 
 ```powershell
-gradle assembleDebug
-adb install -r app\build\outputs\apk\debug\app-debug.apk
+.\gradlew.bat :app:assembleDebug
 ```
 
-The debug APK is created at `app/build/outputs/apk/debug/app-debug.apk`.
+On macOS or Linux, use `./gradlew` instead. The APK is generated at `app/build/outputs/apk/debug/app-debug.apk`.
 
-## Use as your launcher
+The included Makefile provides shortcuts for common tasks:
 
-1. Install and open **Minimal Launcher**.
-2. Press the Android Home button or gesture.
-3. When Android asks which Home app to use, choose **Minimal Launcher** and optionally select **Always**.
-4. On the Home page, swipe left to open the complete app list.
-5. Tap an app name to open it. Long-press an app in the complete list to add it to Home or use the other management actions.
+```sh
+make doctor                         # Check Gradle and connected devices
+make debug                          # Build the debug APK
+make run DEVICE=emulator-5554       # Install and launch on a device
+make home DEVICE=emulator-5554      # Assign Minimal Launcher as Home
+```
 
-## Gestures and management
+Run `make help` to see every available command. If multiple Android devices are connected, pass the desired ADB serial through `DEVICE`.
 
-- **Home:** tap an app to open it. Long-press and drag to reorder it. Long-press without moving to reveal its contextual **Remove** action.
-- **All apps:** tap to open; long-press for Home, rename, hide, block, folder, uninstall, and app-info actions.
-- **Folders:** create or choose a folder from an app's management panel. Folders can be added to Home and reordered like apps.
-- **Search:** type an app or folder name, or use the alphabet rail when search is empty.
-- **Settings:** tap the gear beside search to manage hidden/blocked apps, custom names, folders, and Home appearance.
+After manual installation, press the device's Home button and select **Minimal Launcher**. You can also change the default Home app in Android system settings.
 
-Blocking applies only inside Minimal Launcher and does not require an accessibility service. Hidden and blocked apps can always be restored from Settings.
+## Using the Launcher
 
-## Daily usage access
+- Swipe left from Home to open the complete app list.
+- Tap an app to launch it; long-press it for management actions.
+- Long-press and drag Home items to reorder them.
+- Tap a folder to view its apps.
+- Use the alphabet rail to jump through the app drawer when search is empty.
+- Open Settings from the app list to configure Home details and manage hidden or blocked apps.
 
-The optional Home footer uses Android's Usage Access special permission to calculate today's foreground-app time. Open **Settings → Usage access → Grant usage access** and enable Minimal Launcher. The launcher does not request a normal runtime permission and does not run a background service.
+Blocking applies only inside Minimal Launcher and does not require an accessibility service. Hidden and blocked apps can be restored from Settings.
 
-To switch back later, select another Home app in Android's default-app settings.
+## Privacy and Usage Access
 
-## Architecture
+Launcher preferences stay on the device. The application declares no internet permission, analytics, or background service.
 
-The app keeps a small, focused structure:
+The daily usage summary is optional. When enabled, grant Android's special Usage Access from the launcher's Settings page; all other launcher features work without it. The access is used to calculate today's foreground-app time.
 
-- `data/` discovers activities that expose `ACTION_MAIN` and `CATEGORY_LAUNCHER`, then sorts them by label off the main thread.
-- `data/LauncherPreferencesRepository` persists ordered Home items, app customization, folders, and appearance preferences in Jetpack DataStore.
-- `data/UsageStatsRepository` reads the optional same-day usage total when Android Usage Access is granted.
-- `ui/LauncherViewModel` combines installed apps, preferences, usage, folders, and search into screen state.
-- `ui/` provides the Compose Home, app drawer, management panels, folder content, and Settings screens.
+## Testing
+
+```sh
+make check       # Android lint and local JUnit tests
+make unit-test   # Local JVM tests only
+make ui-test     # Compose tests on a connected device
+make test        # Local and device tests
+```
+
+See [AGENTS.md](AGENTS.md) for repository layout, coding conventions, and contribution expectations.
+
+## Project Structure
+
+```text
+app/src/main/java/com/rafael/minimallauncher/
+├── data/       # Installed-app discovery, preferences, and usage stats
+└── ui/         # Compose screens, launcher state, and interactions
+app/src/main/res/          # Android resources
+app/src/test/              # Local JUnit tests
+app/src/androidTest/       # Device-based Compose tests
+```
 
 ## Technology
 
-- Kotlin
-- Jetpack Compose and Material 3
-- AndroidX ViewModel
-- Jetpack DataStore
-
-## Command shortcuts
-
-After installing `make`, use the root `Makefile` as a convenient interface for Gradle and ADB:
-
-```powershell
-make help
-make run
-make lint
-make test
-make bundle
-```
-
-`make run` defaults to `emulator-5554`. Override it when needed:
-
-```powershell
-make run DEVICE=emulator-5556
-```
+Kotlin, Jetpack Compose Material 3, AndroidX Lifecycle, DataStore Preferences, JUnit 4, and AndroidX Compose testing.
