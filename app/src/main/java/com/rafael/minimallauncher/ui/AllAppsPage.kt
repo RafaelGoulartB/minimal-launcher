@@ -69,6 +69,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -571,6 +572,9 @@ internal fun AllAppsPage(
 
     LaunchedEffect(isVisible, state.preferences.settings.focusSearchOnListOpen) {
         if (isVisible && state.preferences.settings.focusSearchOnListOpen) {
+            searchFieldValue = searchFieldValue.copy(
+                selection = TextRange(searchFieldValue.text.length),
+            )
             withFrameNanos { }
             searchFocusRequester.requestFocus()
             keyboardController?.show()
