@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -312,6 +313,7 @@ internal fun AllAppsPage(
         drawerRows.mapIndexed { index, row -> sectionLabel(row.item.label) to index }
             .distinctBy { it.first }
     }
+    val isSearching = state.searchQuery.isNotBlank()
     val showScrollToTop by remember {
         derivedStateOf {
             listState.firstVisibleItemIndex > 0 || listState.firstVisibleItemScrollOffset > 0
@@ -329,7 +331,18 @@ internal fun AllAppsPage(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(start = 20.dp, end = 4.dp)) {
+    LaunchedEffect(state.searchQuery, isSearching) {
+        if (isSearching && drawerRows.isNotEmpty()) {
+            listState.scrollToItem(0)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .imePadding()
+            .padding(start = 20.dp, end = 4.dp),
+    ) {
         Spacer(Modifier.height(38.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -379,10 +392,16 @@ internal fun AllAppsPage(
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
+                reverseLayout = isSearching,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(end = if (state.searchQuery.isBlank()) 24.dp else 0.dp),
-                contentPadding = PaddingValues(bottom = 88.dp),
+                    .padding(end = if (isSearching) 0.dp else 24.dp),
+                contentPadding = if (isSearching) {
+                    // reverseLayout flips padding: bottom becomes space before the first item (above keyboard).
+                    PaddingValues(bottom = 38.dp)
+                } else {
+                    PaddingValues(bottom = 88.dp)
+                },
             ) {
                 items(drawerRows, key = { row -> "${row.item.id}:${row.isFolderChild}" }) { row ->
                     val item = row.item
@@ -442,7 +461,7 @@ internal fun AllAppsPage(
                     }
                 }
             }
-            if (state.searchQuery.isBlank() && sections.isNotEmpty()) {
+            if (!isSearching && sections.isNotEmpty()) {
                 AlphabetRail(
                     sections = sections,
                     modifier = Modifier.align(Alignment.CenterEnd),
@@ -453,7 +472,7 @@ internal fun AllAppsPage(
                     },
                 )
             }
-            if (showScrollToTop) {
+            if (!isSearching && showScrollToTop) {
                 ScrollToTopButton(
                     modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 18.dp),
                     onClick = {
