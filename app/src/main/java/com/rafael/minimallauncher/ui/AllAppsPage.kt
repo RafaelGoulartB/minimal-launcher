@@ -641,7 +641,7 @@ internal fun AllAppsPage(
         ) {
             LazyColumn(
                 state = listState,
-                reverseLayout = isSearching,
+                reverseLayout = isSearching && !controlsAtTop,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(end = if (isSearching) 0.dp else 24.dp),
