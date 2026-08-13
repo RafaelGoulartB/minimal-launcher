@@ -8,6 +8,7 @@ import com.rafael.minimallauncher.data.LauncherApp
 import com.rafael.minimallauncher.data.LauncherItem
 import com.rafael.minimallauncher.data.LauncherPreferences
 import java.text.Collator
+import java.text.Normalizer
 import java.util.Locale
 
 data class LauncherUiState(
@@ -106,13 +107,7 @@ object LauncherUiStateMapper {
         usage: DailyUsage,
     ): LauncherUiState {
         val normalizedQuery = query.trim()
-        val drawerItems = if (normalizedQuery.isBlank()) {
-            catalog.topLevelItems
-        } else {
-            (catalog.visibleAppItems.values.filter { it.label.contains(normalizedQuery, ignoreCase = true) } +
-                catalog.folderItems.values.filter { it.label.contains(normalizedQuery, ignoreCase = true) })
-                .sortedWith(catalog.itemComparator)
-        }
+        val drawerItems = catalog.drawerItemsForQuery(normalizedQuery)
         return LauncherUiState(
             apps = catalog.apps,
             filteredApps = if (normalizedQuery.isBlank()) {
@@ -120,7 +115,7 @@ object LauncherUiStateMapper {
             } else {
                 catalog.filteredApps.filter { app ->
                     (catalog.preferences.customNames[app.id] ?: app.label)
-                        .contains(normalizedQuery, ignoreCase = true)
+                        .containsSearchQuery(normalizedQuery)
                 }
             },
             favoriteApps = catalog.favoriteApps,
@@ -135,4 +130,32 @@ object LauncherUiStateMapper {
             isLoading = false,
         )
     }
+
+    fun singleLaunchableSearchResult(
+        installedApps: List<LauncherApp>,
+        preferences: LauncherPreferences,
+        query: String,
+        locale: Locale = Locale.getDefault(),
+    ): AppItem? {
+        if (query.isBlank()) return null
+        return mapCatalog(installedApps, preferences, locale)
+            .drawerItemsForQuery(query.trim())
+            .singleOrNull() as? AppItem
+    }
+
+    private fun LauncherCatalog.drawerItemsForQuery(query: String): List<LauncherItem> = if (query.isBlank()) {
+        topLevelItems
+    } else {
+        (visibleAppItems.values.filter { it.label.containsSearchQuery(query) } +
+            folderItems.values.filter { it.label.containsSearchQuery(query) })
+            .sortedWith(itemComparator)
+    }
 }
+
+internal fun String.containsSearchQuery(query: String): Boolean = searchNormalized()
+    .contains(query.searchNormalized())
+
+private fun String.searchNormalized(): String = Normalizer
+    .normalize(this, Normalizer.Form.NFD)
+    .filterNot { character -> Character.getType(character) == Character.NON_SPACING_MARK.toInt() }
+    .lowercase(Locale.ROOT)

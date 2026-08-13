@@ -30,6 +30,8 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -72,6 +74,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -467,6 +470,7 @@ private fun AppListControls(
     searchFocusRequester: FocusRequester,
     onSearchChange: (TextFieldValue) -> Unit,
     onClearSearch: () -> Unit,
+    onSearchSubmit: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     Row(
@@ -483,6 +487,8 @@ private fun AppListControls(
                 .clip(RoundedCornerShape(30.dp))
                 .background(Color(0xFF1B1B1B)),
             singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onSearchSubmit() }),
             textStyle = androidx.compose.ui.text.TextStyle(
                 color = Color.White,
                 fontSize = launcherSp(20.sp),
@@ -519,6 +525,7 @@ internal fun AllAppsPage(
     actions: LauncherActions,
     onOpenSettings: () -> Unit,
     isVisible: Boolean = true,
+    appOpener: (android.content.Context, AppItem, Set<String>) -> Unit = ::openApp,
 ) {
     val context = LocalContext.current
     val searchFocusRequester = remember { FocusRequester() }
@@ -610,6 +617,18 @@ internal fun AllAppsPage(
                     actions.onSearchChange("")
                     searchFocusRequester.requestFocus()
                 },
+                onSearchSubmit = {
+                    val result = LauncherUiStateMapper.singleLaunchableSearchResult(
+                        installedApps = state.apps,
+                        preferences = state.preferences,
+                        query = searchFieldValue.text,
+                    )
+                    if (result != null) {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                        appOpener(context, result, state.preferences.blockedAppIds)
+                    }
+                },
                 onOpenSettings = onOpenSettings,
             )
             Spacer(Modifier.height(18.dp))
@@ -645,7 +664,7 @@ internal fun AllAppsPage(
                         is AppItem -> DrawerAppRow(
                             item = item,
                             isFolderChild = row.isFolderChild,
-                            onClick = { openApp(context, item, state.preferences.blockedAppIds) },
+                            onClick = { appOpener(context, item, state.preferences.blockedAppIds) },
                             onLongClick = { selectedApp = item },
                         )
                     }
@@ -687,6 +706,18 @@ internal fun AllAppsPage(
                     searchFieldValue = TextFieldValue("")
                     actions.onSearchChange("")
                     searchFocusRequester.requestFocus()
+                },
+                onSearchSubmit = {
+                    val result = LauncherUiStateMapper.singleLaunchableSearchResult(
+                        installedApps = state.apps,
+                        preferences = state.preferences,
+                        query = searchFieldValue.text,
+                    )
+                    if (result != null) {
+                        keyboardController?.hide()
+                        focusManager.clearFocus()
+                        appOpener(context, result, state.preferences.blockedAppIds)
+                    }
                 },
                 onOpenSettings = onOpenSettings,
             )

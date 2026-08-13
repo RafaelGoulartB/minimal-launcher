@@ -6,9 +6,12 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.geometry.Offset
 import com.rafael.minimallauncher.R
@@ -105,6 +108,33 @@ class LauncherUiTest {
         }
 
         composeRule.onNodeWithContentDescription("Settings").assertExists()
+    }
+
+    @Test
+    fun keyboardSearchActionOpensSingleAccentInsensitiveResult() {
+        val accentedApp = AppItem(
+            LauncherApp("Câmera", ComponentName("com.example.camera", "com.example.camera.Main")),
+        )
+        var openedApp: AppItem? = null
+        composeRule.setContent {
+            MinimalLauncherTheme {
+                AllAppsPage(
+                    state = LauncherUiState(
+                        apps = listOf(accentedApp.app),
+                        drawerItems = listOf(accentedApp),
+                        isLoading = false,
+                    ),
+                    actions = actions(),
+                    onOpenSettings = {},
+                    appOpener = { _, item, _ -> openedApp = item },
+                )
+            }
+        }
+
+        composeRule.onNode(hasSetTextAction()).performTextInput("camera")
+        composeRule.onNode(hasSetTextAction()).performImeAction()
+
+        composeRule.runOnIdle { assertEquals(accentedApp, openedApp) }
     }
 
     @Test
