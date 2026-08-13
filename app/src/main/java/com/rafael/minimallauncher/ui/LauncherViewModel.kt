@@ -94,6 +94,7 @@ class LauncherViewModel(
     private var appsRefreshJob: Job? = null
     private var usageRefreshJob: Job? = null
     private var refreshRequested = false
+    private var hasHandledInitialResume = false
     private var nextUndoToken = 0L
     private var pendingUndo: PendingUndo? = null
     private var undoExpiryJob: Job? = null
@@ -148,6 +149,16 @@ class LauncherViewModel(
     }
 
     fun onPackageChanged() = refreshApps()
+
+    fun onHostResumed() {
+        if (!hasHandledInitialResume) {
+            hasHandledInitialResume = true
+            return
+        }
+        // The initial load runs in init; later resumes refresh changes made outside the launcher.
+        refreshApps()
+        refreshUsage()
+    }
 
     fun setSearchQuery(value: String) {
         searchQuery.value = value

@@ -77,9 +77,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Refresh when returning from installation/uninstallation without a permanent receiver.
-        launcherViewModel.refreshApps()
-        launcherViewModel.refreshUsage()
+        launcherViewModel.onHostResumed()
     }
 
     override fun onStart() {

@@ -145,8 +145,8 @@ internal fun RefreshUsageWhileVisible(onRefresh: () -> Unit) {
             if (refreshJob != null) return
             refreshJob = scope.launch {
                 while (true) {
-                    onRefresh()
                     delay(60_000)
+                    onRefresh()
                 }
             }
         }

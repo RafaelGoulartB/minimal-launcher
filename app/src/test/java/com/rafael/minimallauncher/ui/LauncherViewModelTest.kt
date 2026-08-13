@@ -58,6 +58,30 @@ class LauncherViewModelTest {
     }
 
     @Test
+    fun firstResumeUsesInitialRefreshAndLaterResumeRefreshesAgain() = runTest {
+        val repository = FakeLauncherRepository(cached = emptyList(), loaded = listOf(app))
+        val usageRepository = FakeUsageStatsRepository()
+        val viewModel = createViewModel(
+            repository = repository,
+            preferences = FakePreferencesRepository(),
+            usageStatsRepository = usageRepository,
+        )
+        advanceUntilIdle()
+
+        viewModel.onHostResumed()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.loadAttempts)
+        assertEquals(1, usageRepository.loadAttempts)
+
+        viewModel.onHostResumed()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.loadAttempts)
+        assertEquals(2, usageRepository.loadAttempts)
+    }
+
+    @Test
     fun successfulEmptyRefreshReplacesCachedAppsAndCleansReferences() = runTest {
         val preferences = FakePreferencesRepository()
         val viewModel = createViewModel(
@@ -332,7 +356,10 @@ class LauncherViewModelTest {
     }
 
     private class FakeUsageStatsRepository(private val failure: Boolean = false) : UsageStatsRepository {
+        var loadAttempts = 0
+
         override suspend fun loadTodayUsage(): DailyUsage {
+            loadAttempts++
             if (failure) error("usage failed")
             return DailyUsage()
         }
