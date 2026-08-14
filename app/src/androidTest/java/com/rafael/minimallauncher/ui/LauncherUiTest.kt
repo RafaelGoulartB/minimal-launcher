@@ -6,9 +6,12 @@ import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.geometry.Offset
 import com.rafael.minimallauncher.R
@@ -19,12 +22,14 @@ import com.rafael.minimallauncher.data.FolderItem
 import com.rafael.minimallauncher.data.LauncherApp
 import com.rafael.minimallauncher.data.LauncherFolder
 import com.rafael.minimallauncher.data.LauncherPreferences
+import com.rafael.minimallauncher.data.LauncherSettings
 import com.rafael.minimallauncher.data.LauncherAccent
 import com.rafael.minimallauncher.data.LauncherFont
 import com.rafael.minimallauncher.data.LauncherTextSize
 import org.junit.Rule
 import org.junit.Test
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 
 class LauncherUiTest {
     @get:Rule
@@ -105,6 +110,64 @@ class LauncherUiTest {
         }
 
         composeRule.onNodeWithContentDescription("Settings").assertExists()
+    }
+
+    @Test
+    fun keyboardSearchActionOpensSingleAccentInsensitiveResult() {
+        val accentedApp = AppItem(
+            LauncherApp("Câmera", ComponentName("com.example.camera", "com.example.camera.Main")),
+        )
+        var openedApp: AppItem? = null
+        composeRule.setContent {
+            MinimalLauncherTheme {
+                AllAppsPage(
+                    state = LauncherUiState(
+                        apps = listOf(accentedApp.app),
+                        drawerItems = listOf(accentedApp),
+                        isLoading = false,
+                    ),
+                    actions = actions(),
+                    onOpenSettings = {},
+                    appOpener = { _, item, _ -> openedApp = item },
+                )
+            }
+        }
+
+        composeRule.onNode(hasSetTextAction()).performTextInput("camera")
+        composeRule.onNode(hasSetTextAction()).performImeAction()
+
+        composeRule.runOnIdle { assertEquals(accentedApp, openedApp) }
+    }
+
+    @Test
+    fun topSearchControlsKeepResultsInNaturalOrder() {
+        val camera = AppItem(
+            LauncherApp("Camera", ComponentName("com.example.camera", "com.example.camera.Main")),
+        )
+        composeRule.setContent {
+            MinimalLauncherTheme {
+                AllAppsPage(
+                    state = LauncherUiState(
+                        drawerItems = listOf(app, camera),
+                        searchQuery = "ca",
+                        preferences = LauncherPreferences(
+                            settings = LauncherSettings(
+                                appListControlsPosition = AppListControlsPosition.TOP,
+                            ),
+                        ),
+                        isLoading = false,
+                    ),
+                    actions = actions(),
+                    onOpenSettings = {},
+                    isVisible = false,
+                )
+            }
+        }
+
+        val calendarTop = composeRule.onNodeWithText("Calendar").fetchSemanticsNode().boundsInRoot.top
+        val cameraTop = composeRule.onNodeWithText("Camera").fetchSemanticsNode().boundsInRoot.top
+
+        assertTrue("Expected Calendar above Camera", calendarTop < cameraTop)
     }
 
     @Test
