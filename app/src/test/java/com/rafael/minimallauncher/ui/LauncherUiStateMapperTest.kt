@@ -36,6 +36,47 @@ class LauncherUiStateMapperTest {
     }
 
     @Test
+    fun searchIgnoresDiacritics() {
+        val accentedApp = LauncherApp(
+            "Câmera",
+            ComponentName("", ""),
+            stableIdOverride = "camera",
+        )
+        val catalog = LauncherUiStateMapper.mapCatalog(listOf(accentedApp), LauncherPreferences(), Locale.US)
+
+        val state = LauncherUiStateMapper.mapState(catalog, "camera", DailyUsage())
+
+        assertEquals(listOf(accentedApp), state.filteredApps)
+        assertEquals("Câmera", (state.drawerItems.single() as AppItem).label)
+    }
+
+    @Test
+    fun singleLaunchableSearchResultRequiresOneMatchingAppAndNoMatchingFolder() {
+        val preferences = LauncherPreferences(
+            folders = listOf(LauncherFolder("camera-folder", "Camera tools")),
+        )
+
+        assertEquals(
+            calendar,
+            LauncherUiStateMapper.singleLaunchableSearchResult(
+                installedApps = listOf(calendar, notes),
+                preferences = LauncherPreferences(customNames = mapOf(calendar.id to "Calendário")),
+                query = "calendario",
+                locale = Locale.US,
+            )?.app,
+        )
+        assertEquals(
+            null,
+            LauncherUiStateMapper.singleLaunchableSearchResult(
+                installedApps = listOf(calendar),
+                preferences = preferences,
+                query = "camera",
+                locale = Locale.US,
+            ),
+        )
+    }
+
+    @Test
     fun blockedAppsRemainVisibleAndTheirStateIsPreserved() {
         val preferences = LauncherPreferences(blockedAppIds = setOf(calendar.id))
         val catalog = LauncherUiStateMapper.mapCatalog(listOf(calendar), preferences, Locale.US)
